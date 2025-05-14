@@ -1,0 +1,5 @@
+#+title: MQTT Framebuffer panel for Raspberry Pi 2
+
+Something to display MQTT messages and other stuff on a 3.5' TFT screen hooked up to an old Raspberry Pi 2.
+
+Initial version made by ChatGPT o3, because who writes their own code these days anyway.
