@@ -66,7 +66,7 @@ def open_fb(dev: str | None = None) -> FB:
 # Rendering constants (tweak to taste)
 # ---------------------------------------------------------------------------
 ROTATE       = 0                # 0 / 90 / 180 / 270
-BG_COLOUR    = (0, 0, 123)
+BG_COLOUR    = (0, 0, 0)
 TITLE_COLOUR = (174, 174, 221)
 BODY_COLOUR  = (255, 255, 255)
 PROBE_COLOUR = (255, 0, 255)
