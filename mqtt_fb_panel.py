@@ -349,7 +349,27 @@ def on_mqtt(client, userdata, msg):
             # If not JSON, treat the whole payload_str as the message text
             print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text.", flush=True)
             text_content = payload_str
-            source = "Raw Text"
+            
+            # Determine source from topic suffix for raw text messages
+            source_val = "Unknown" # Default
+            if msg.topic.startswith(MQTT_TOPIC_PREFIX):
+                suffix = msg.topic[len(MQTT_TOPIC_PREFIX):]
+                if suffix:
+                    source_val = suffix
+                else: # Message topic is identical to MQTT_TOPIC_PREFIX
+                    prefix_no_trailing_slash = MQTT_TOPIC_PREFIX.rstrip('/')
+                    if not prefix_no_trailing_slash: # Prefix was just "/"
+                        source_val = "/"
+                    else:
+                        source_val = prefix_no_trailing_slash.split('/')[-1]
+            else:
+                # Fallback if topic somehow doesn't start with the known prefix (should be rare for non-control messages)
+                topic_parts = msg.topic.split('/')
+                # Get last non-empty part of the topic
+                last_part = topic_parts[-1] if topic_parts[-1] else (topic_parts[-2] if len(topic_parts) > 1 and topic_parts[-2] else msg.topic)
+                source_val = last_part if last_part else "Unknown"
+
+            source = source_val
             importance = "info"
             timestamp_str = None # No timestamp if raw
 
