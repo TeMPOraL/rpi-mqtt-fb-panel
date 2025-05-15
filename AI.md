@@ -52,6 +52,28 @@ Strive to adhere to the following guidelines to improve code quality and reduce 
     *   While adhering to the immediate task's scope ("do what they ask, but no more"), consider the overall project requirements when designing initial solutions.
     *   If a core feature implies future complexity (e.g., formula evaluation, reactivity), the initial structures should be reasonably accommodating of this, even if the first implementation is a simplified version. This might involve placeholder modules or slightly more robust data structures from the outset.
 
+## Project platform note
+
+This project is targeting a Raspberry Pi 2 Model B V1.1 board with a 3.5 inch TFT LCD touchscreen sitting on top.
+That touchscreen is enabled/configured via system overlay and "just works", and is currently drawn to via framebuffer approach.
+
+Keep in mind that the Rapsberry Pi board in question is old and can only run 32-bit code. Relevant specs:
+
+- CPU - Broadcom BCM2836 Quad-core ARM Cortex-A7 CPU
+- Speed - 900 MHz
+- OS - Raspbian GNU/Linux 11 (bullseye)
+- Memory - 1GB
+- Network - 100Mbps Ethernet
+- Video specs - H.264, MPEG-4 decode (1080p30); H.264 encode (1080p30), OpenGL ES 2.0
+- Video ports - 1 HDMI (full-size), DSI
+- Ports - 4 x USB 2.0, CSI, 4-pole audio/video
+- GPIO - 40-pin (mostly taken by the TFT LCD screen)
+- Power - Micro USB 5 V/2.5 A DC, 5 V via GPIO
+- Size - 85.60 × 56.5mm
+
+The board is dedicated to running this project and any supplementary tooling. There's a Home Assistant instance involved in larger system
+to which this is deployed, but that's running on a different board.
+
 ## Project Files and Structure
 This section outlines the core files of the project.
 
