@@ -215,23 +215,5 @@ def main():
     print("client done")
 
 # ---------------------------------------------------------------------------
-# systemd example (save as /etc/systemd/system/mqtt-alert.service)
-# ---------------------------------------------------------------------------
-"""
-[Unit]
-Description=Framebuffer MQTT Alert Panel
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-EnvironmentFile=/home/pi/.config/mqtt_alert_panel.env
-ExecStart=/usr/bin/env FBDEV=/dev/fb0 /usr/bin/python3 /home/pi/mqtt_fb_panel.py
-Restart=on-failure
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-"""
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     main()
