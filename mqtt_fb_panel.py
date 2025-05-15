@@ -66,12 +66,18 @@ def open_fb(dev: str | None = None) -> FB:
 
 # ---------------------------------------------------------------------------
 # Rendering constants (tweak to taste)
+#
+# LCARS colors via https://www.thelcars.com/colors.php
+# Quick ref of colors used or considered to be used:
+# - TNG orange - #FF8800 rgb(255, 136, 0)
+# - TNG african-violet - #CC99FF (lavender) rgb(204, 153, 255)
 # ---------------------------------------------------------------------------
 ROTATE       = 0                # 0 / 90 / 180 / 270
 BG_COLOUR    = (0, 0, 0)
-TITLE_COLOUR = (174, 174, 221)
-BODY_COLOUR  = (255, 255, 255)
+TITLE_COLOUR = (255, 136, 0) # TNG orange
+BODY_COLOUR  = (204, 153, 255) # TNG african-violet
 PROBE_COLOUR = (255, 0, 255)
+# TODO: upload proper Trek font
 TITLE_FONT   = ImageFont.truetype(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
 BODY_FONT    = ImageFont.truetype(
@@ -151,7 +157,7 @@ def render_messages():
     avg_char_width_M = text_size(draw, "M", BODY_FONT)[0]
     if avg_char_width_M == 0: # Fallback if 'M' gives 0 width
         avg_char_width_M = BODY_FONT.size * 0.55 # Rough estimate
-    
+
     for msg_obj in list(messages_store): # Iterate a copy
         try:
             # Format timestamp
@@ -161,15 +167,15 @@ def render_messages():
             ts_str = "??:??:??" # Fallback for invalid timestamp
 
         prefix = f"[{ts_str}] [{msg_obj.get('source', 'N/A')}] "
-        
+
         prefix_width = text_size(draw, prefix, BODY_FONT)[0]
         available_text_pixel_width = WIDTH - left_padding - prefix_width - right_padding
-        
+
         # Calculate characters for textwrap based on available pixel width
         if avg_char_width_M > 0:
             chars_for_message = max(1, int(available_text_pixel_width / avg_char_width_M))
         else: # Should not happen with fallback, but as a safeguard
-            chars_for_message = 20 
+            chars_for_message = 20
 
         message_text = msg_obj.get('text', '')
         wrapped_text_lines = textwrap.wrap(message_text, width=chars_for_message, subsequent_indent="  ") # Indent subsequent lines of same message
@@ -195,7 +201,7 @@ def render_messages():
         max_displayable_message_lines = (HEIGHT - message_area_start_y) // message_line_height
     else:
         max_displayable_message_lines = 0
-        
+
     lines_to_display = all_render_lines[-max_displayable_message_lines:]
 
     # 5. Draw the messages
@@ -205,7 +211,7 @@ def render_messages():
         current_y += message_line_height
         if current_y > HEIGHT: # Stop if we run out of screen
             break
-            
+
     push(img)
 
 # ---------------------------------------------------------------------------
@@ -323,7 +329,7 @@ def main():
     # If using paho-mqtt v2.x, one might use:
     # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="", protocol=mqtt.MQTTv5)
     # and then set client.connect(..., clean_start=True, ...)
-    
+
     client.on_message = on_mqtt
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
 
