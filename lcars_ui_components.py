@@ -19,21 +19,21 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
 
     event_log_text = "EVENT LOG"
     # text_size is imported from lcars_drawing_utils at the top of the file
-    event_log_text_w, event_log_text_h = text_size(draw, event_log_text, lc.TITLE_FONT)
+    event_log_text_w, _ = text_size(draw, event_log_text, lc.TITLE_FONT) # Height not needed for baseline anchor
 
-    # Determine position for "EVENT LOG" text.
+    # Determine X position for "EVENT LOG" text (left edge).
     # The right edge of the text should be lc.PADDING to the left of the Right Terminator's starting X.
-    # The Right Terminator starts at: screen_width - lc.PADDING - right_terminator_width
-    # Note: right_terminator_width is defined above and is equal to lc.BAR_HEIGHT.
     text_x_coordinate = (screen_width - lc.PADDING - lc.BAR_HEIGHT) - lc.PADDING - event_log_text_w
     
-    # Vertically center the text within the conceptual top bar's height (lc.BAR_HEIGHT).
-    # lc.PADDING is the Y offset for the top bar.
-    text_y_coordinate = lc.PADDING + (lc.BAR_HEIGHT - event_log_text_h) // 2
+    # Calculate Y position for the baseline of "EVENT LOG" text, similar to draw_text_in_rect.
+    # This centers the ascent part of TITLE_FONT within lc.BAR_HEIGHT.
+    # lc.PADDING is the Y offset for the top bar itself.
+    # lc.BAR_HEIGHT is the height of the rectangle (bar) the text is in.
+    title_font_ascent, _ = lc.TITLE_FONT.getmetrics()
+    event_log_baseline_y = lc.PADDING + (lc.BAR_HEIGHT + title_font_ascent) // 2
     
-    # Draw the "EVENT LOG" text directly on the background, using "lt" (left-top) anchor.
-    # text_x_coordinate and text_y_coordinate are calculated as the top-left point for the text.
-    draw.text((text_x_coordinate, text_y_coordinate), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="lt")
+    # Draw the "EVENT LOG" text directly on the background, using "ls" (left-baseline) anchor.
+    draw.text((text_x_coordinate, event_log_baseline_y), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
 
     # Draw the Main Bar Segment.
     # It starts after the Left Terminator and ends before the "EVENT LOG" text.
