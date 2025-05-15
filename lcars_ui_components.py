@@ -12,16 +12,43 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     right_terminator_width = lc.BAR_HEIGHT # Width of the terminator element
     draw_lcars_shape(draw, screen_width - lc.PADDING - right_terminator_width, lc.PADDING, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True)
 
-    # Central Bar with "EVENT LOG"
-    event_log_text = "EVENT LOG"
-    main_bar_x = lc.PADDING + left_terminator_width
-    main_bar_w = screen_width - (2 * lc.PADDING) - left_terminator_width - right_terminator_width
+    # "EVENT LOG" Text and associated Bar Segment
+    # The Left and Right Terminators are drawn by the code immediately preceding this block.
+    # This section calculates the position for the "EVENT LOG" text, draws it,
+    # and then draws a bar segment filling the space between the Left Terminator and the text.
 
-    if main_bar_w > 0:
-        draw_lcars_shape(draw, main_bar_x, lc.PADDING, main_bar_w, lc.BAR_HEIGHT, 0, lc.COLOR_BARS) # Central bar
-        draw_text_in_rect(draw, event_log_text, lc.TITLE_FONT,
-                          main_bar_x, lc.PADDING, main_bar_w, lc.BAR_HEIGHT,
-                          lc.TEXT_COLOR_TITLE, align="center", padding_x=lc.BUTTON_PADDING_X)
+    event_log_text = "EVENT LOG"
+    # text_size is imported from lcars_drawing_utils at the top of the file
+    event_log_text_w, event_log_text_h = text_size(draw, event_log_text, lc.TITLE_FONT)
+
+    # Determine position for "EVENT LOG" text.
+    # The right edge of the text should be lc.PADDING to the left of the Right Terminator's starting X.
+    # The Right Terminator starts at: screen_width - lc.PADDING - right_terminator_width
+    # Note: right_terminator_width is defined above and is equal to lc.BAR_HEIGHT.
+    text_x_coordinate = (screen_width - lc.PADDING - lc.BAR_HEIGHT) - lc.PADDING - event_log_text_w
+    
+    # Vertically center the text within the conceptual top bar's height (lc.BAR_HEIGHT).
+    # lc.PADDING is the Y offset for the top bar.
+    text_y_coordinate = lc.PADDING + (lc.BAR_HEIGHT - event_log_text_h) // 2
+    
+    # Draw the "EVENT LOG" text directly on the background.
+    draw.text((text_x_coordinate, text_y_coordinate), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE)
+
+    # Draw the Main Bar Segment.
+    # It starts after the Left Terminator and ends before the "EVENT LOG" text.
+    # The Left Terminator ends at: lc.PADDING + left_terminator_width
+    # Note: left_terminator_width is defined above and is equal to lc.BAR_HEIGHT.
+    bar_segment_start_x = lc.PADDING + lc.BAR_HEIGHT
+    
+    # The bar segment should end lc.PADDING to the left of where the "EVENT LOG" text starts.
+    bar_segment_end_x = text_x_coordinate - lc.PADDING
+    
+    bar_segment_width = bar_segment_end_x - bar_segment_start_x
+
+    if bar_segment_width > 0:
+        # Draw the bar segment (no rounding for this piece, it's a simple rectangle).
+        # It uses lc.PADDING as its Y coordinate and lc.BAR_HEIGHT as its height.
+        draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
 
 def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int):
     """Renders the bottom LCARS bar with 'MQTT STREAM' label and buttons."""
