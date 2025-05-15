@@ -73,10 +73,10 @@ title_font_nominal_height = TITLE_FONT.size # Using nominal size as proxy for ac
 # User wants bar height reduced by ~30% from a conceptual height that included padding.
 conceptual_padded_height = title_font_nominal_height + PADDING * 2
 # The user wants the bar height to be a percentage of this conceptual_padded_height.
-# The 0.7 factor is from user's current file.
+# The 0.5 factor is from user's current file.
 # If this makes the bar shorter than the font, the text will be centered in it,
 # potentially appearing shifted/clipped, which achieves "taking more vertical space relative to bar height".
-BAR_HEIGHT = int(conceptual_padded_height * 0.7)
+BAR_HEIGHT = int(conceptual_padded_height * 0.5)
 
 # Ensure BAR_HEIGHT is at least a minimal positive value to prevent drawing errors.
 BAR_HEIGHT = max(1, BAR_HEIGHT) # If scaling makes it too small or zero
