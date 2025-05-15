@@ -65,11 +65,28 @@ BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
 
 # BAR_HEIGHT depends on TITLE_FONT.size and PADDING
 # Ensure TITLE_FONT is loaded before this calculation
-# Get font size. For TrueType fonts, size is roughly ascent + descent.
-# Using .size attribute which is the requested point size.
-# A more accurate height might be font.getbbox("A")[3] - font.getbbox("A")[1] or font.getmetrics()
-# For simplicity, TITLE_FONT.size is used as an approximation of text height.
-title_font_height = TITLE_FONT.size # Or use a more accurate measure if available and needed
-# Reduce bar height by ~10% while keeping font size same
-BAR_HEIGHT = int((title_font_height + PADDING * 2) * 0.9) # Height of top and bottom bars
+# BAR_HEIGHT is defined as the exact pixel height of an uppercase character from TITLE_FONT.
+# This ensures bars snugly fit the height of title text like "EVENT LOG".
+# We use getmask("M").size[1] to get the actual pixel height of a representative uppercase character.
+# An ImageDraw instance is not needed for font.getmask().
+try:
+    # Get the actual pixel height of a representative uppercase character.
+    # "M" is a common choice. Using "A" or any other non-descending uppercase char would also work.
+    actual_title_text_height = TITLE_FONT.getmask("M").size[1]
+    if actual_title_text_height <= 0: # Fallback if getmask returns non-positive height
+        print("Warning: Font getmask returned non-positive height, using nominal size.", flush=True)
+        actual_title_text_height = TITLE_FONT.size # Fallback to nominal size
+except AttributeError:
+    # Fallback for older Pillow versions or font types that might not have getmask directly
+    # or if TITLE_FONT is not a TrueType/OpenType font.
+    # Using getmetrics (ascent + descent) is a good fallback for TrueType.
+    print("Warning: TITLE_FONT.getmask failed, attempting getmetrics.", flush=True)
+    try:
+        ascent, descent = TITLE_FONT.getmetrics()
+        actual_title_text_height = ascent + descent
+    except AttributeError:
+        print("Warning: TITLE_FONT.getmetrics failed, using nominal size.", flush=True)
+        actual_title_text_height = TITLE_FONT.size # Fallback to nominal size
+
+BAR_HEIGHT = actual_title_text_height
 CORNER_RADIUS = BAR_HEIGHT // 2
