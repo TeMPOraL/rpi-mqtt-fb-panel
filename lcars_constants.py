@@ -63,30 +63,29 @@ except IOError:
 PADDING = 5  # General padding
 BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
 
-# BAR_HEIGHT depends on TITLE_FONT.size and PADDING
-# Ensure TITLE_FONT is loaded before this calculation
-# BAR_HEIGHT is defined as the exact pixel height of an uppercase character from TITLE_FONT.
-# This ensures bars snugly fit the height of title text like "EVENT LOG".
-# We use getmask("M").size[1] to get the actual pixel height of a representative uppercase character.
-# An ImageDraw instance is not needed for font.getmask().
+# BAR_HEIGHT depends on TITLE_FONT.
+# Ensure TITLE_FONT is loaded before this calculation.
+# BAR_HEIGHT is defined by the ascent of TITLE_FONT. This represents the height
+# from the baseline to the top of typical uppercase characters.
+# This ensures that the main body of TITLE_FONT text will fill the bar height,
+# and descenders will hang below.
 try:
-    # Get the actual pixel height of a representative uppercase character.
-    # "M" is a common choice. Using "A" or any other non-descending uppercase char would also work.
-    actual_title_text_height = TITLE_FONT.getmask("M").size[1]
-    if actual_title_text_height <= 0: # Fallback if getmask returns non-positive height
-        print("Warning: Font getmask returned non-positive height, using nominal size.", flush=True)
-        actual_title_text_height = TITLE_FONT.size # Fallback to nominal size
+    # Get the ascent from font metrics. This is the height above the baseline.
+    title_font_ascent, _ = TITLE_FONT.getmetrics() # We only need ascent here
+    if title_font_ascent <= 0: # Fallback if getmetrics returns non-positive ascent
+        print("Warning: TITLE_FONT.getmetrics() returned non-positive ascent, using nominal size.", flush=True)
+        title_font_ascent = TITLE_FONT.size # Fallback to nominal size
 except AttributeError:
-    # Fallback for older Pillow versions or font types that might not have getmask directly
-    # or if TITLE_FONT is not a TrueType/OpenType font.
-    # Using getmetrics (ascent + descent) is a good fallback for TrueType.
-    print("Warning: TITLE_FONT.getmask failed, attempting getmetrics.", flush=True)
+    # Fallback for font types that might not have getmetrics (e.g., very old Pillow or non-TrueType)
+    print("Warning: TITLE_FONT.getmetrics() failed, attempting getmask('M') height.", flush=True)
     try:
-        ascent, descent = TITLE_FONT.getmetrics()
-        actual_title_text_height = ascent + descent
+        title_font_ascent = TITLE_FONT.getmask("M").size[1] # Fallback to M's mask height
+        if title_font_ascent <= 0:
+            print("Warning: TITLE_FONT.getmask('M') returned non-positive height, using nominal size.", flush=True)
+            title_font_ascent = TITLE_FONT.size # Further fallback
     except AttributeError:
-        print("Warning: TITLE_FONT.getmetrics failed, using nominal size.", flush=True)
-        actual_title_text_height = TITLE_FONT.size # Fallback to nominal size
+        print("Warning: TITLE_FONT.getmask('M') failed, using nominal size.", flush=True)
+        title_font_ascent = TITLE_FONT.size # Final fallback
 
-BAR_HEIGHT = actual_title_text_height
+BAR_HEIGHT = title_font_ascent
 CORNER_RADIUS = BAR_HEIGHT // 2
