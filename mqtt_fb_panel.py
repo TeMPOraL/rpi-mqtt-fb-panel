@@ -105,6 +105,7 @@ def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process
 
     for msg_obj in messages_to_process:
         ts_str = msg_obj.timestamp.strftime("%H:%M:%S")
+        importance = msg_obj.importance
 
         source_text = msg_obj.source
         if len(source_text) > col_source_max_chars:
@@ -124,11 +125,11 @@ def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process
              wrapped_message_lines = [""]
 
         processed_message_lines.append({
-            "source": source_text, "msg_part": wrapped_message_lines[0], "time": ts_str
+            "source": source_text, "msg_part": wrapped_message_lines[0], "time": ts_str, "importance": importance
         })
         for line_part in wrapped_message_lines[1:]:
             processed_message_lines.append({
-                "source": "", "msg_part": line_part, "time": ""
+                "source": "", "msg_part": line_part, "time": "", "importance": importance
             })
     return processed_message_lines
 
@@ -168,6 +169,13 @@ def render_messages():
              WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING -1, layout['message_area_y_end'] -1),
             outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1
         )
+        # Message wrap debug line
+        wrap_line_x = layout['col_message_x'] + layout['col_message_width']
+        draw.line(
+            [(wrap_line_x, layout['message_area_y_start']),
+             (wrap_line_x, layout['message_area_y_end'] -1)],
+            fill=lc.DEBUG_MESSAGE_WRAP_LINE_COLOR, width=1
+        )
 
     # 3. Prepare Messages for Display
     # Create a copy for processing, as messages_store might be updated by MQTT thread
@@ -196,9 +204,20 @@ def render_messages():
         # For now, we'll just use a placeholder. The `on_mqtt` part handles setting 'control' importance.
         # When rendering, we need to access that.
         # A quick fix: check source prefix for "LCARS/"
-        text_fill_color = lc.TEXT_COLOR_BODY
-        if line_data["source"].startswith("LCARS/"): # Crude check for control message
+        # text_fill_color = lc.TEXT_COLOR_BODY
+        # if line_data["source"].startswith("LCARS/"): # Crude check for control message
+        #    text_fill_color = lc.TEXT_COLOR_CONTROL
+
+        # Determine text color based on importance stored in line_data
+        line_importance = line_data.get("importance", "info")
+        if line_importance == "control":
             text_fill_color = lc.TEXT_COLOR_CONTROL
+        elif line_importance == "error":
+            text_fill_color = lc.TEXT_COLOR_ERROR
+        elif line_importance == "warning":
+            text_fill_color = lc.TEXT_COLOR_WARNING
+        else: # "info" and any other unspecified
+            text_fill_color = lc.TEXT_COLOR_BODY
 
 
         if line_data["source"]:
@@ -286,12 +305,10 @@ def on_mqtt(client, userdata, msg):
 
             if log_control_messages_enabled:
                 # Log the control command itself as a message if enabled
-                control_msg_text = f"CMD: {command_suffix}"
-                if payload_str: # Add payload to message if it exists
-                    control_msg_text += f" PAYLOAD: {payload_str}"
-
+                # Display only the payload as the message text for control messages.
+                # If payload_str is empty, text will be empty.
                 control_message_obj = Message(
-                    text=control_msg_text,
+                    text=payload_str, # Use payload_str directly
                     source=f"LCARS/{command_suffix}",
                     importance="control", # Special importance for control messages
                     timestamp=datetime.now(),

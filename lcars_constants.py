@@ -23,7 +23,9 @@ LCARS_CYAN = (102, 204, 255)        # Control messages or other special info (#6
 # Text Colors
 # ---------------------------------------------------------------------------
 TEXT_COLOR_TITLE = LCARS_ORANGE
-TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT
+TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT # Default for "info"
+TEXT_COLOR_WARNING = LCARS_YELLOW
+TEXT_COLOR_ERROR = LCARS_RED_DARK
 TEXT_COLOR_CONTROL = LCARS_CYAN
 TEXT_COLOR_BUTTON_LABEL = (0, 0, 0) # Black
 TEXT_COLOR_HIGHLIGHT = (255, 255, 255) # White
@@ -43,6 +45,7 @@ PROBE_COLOUR = (255, 0, 255) # Magenta for probe
 # ---------------------------------------------------------------------------
 DEBUG_BOUNDING_BOX_UI_ELEMENT = (0, 255, 0) # Green
 DEBUG_BOUNDING_BOX_MESSAGE_COLUMN = (255, 0, 255) # Pink/Magenta
+DEBUG_MESSAGE_WRAP_LINE_COLOR = (0, 0, 255) # Blue
 
 # ---------------------------------------------------------------------------
 # Fonts
