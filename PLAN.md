@@ -3,20 +3,20 @@
 This document outlines the phased implementation plan for enhancing the MQTT Alert Panel.
 
 ## Phase 1: MQTT & Basic Message Handling
-*   [ ] **Implement MQTTv5:**
-    *   [ ] Update `paho-mqtt` client initialization to specify `protocol=mqtt.MQTTv5`.
+*   [x] **Implement MQTTv5:**
+    *   [x] Update `paho-mqtt` client initialization to specify `protocol=mqtt.MQTTv5`.
     *   [ ] Verify MQTTv5 features if any specific ones are leveraged (initially, just compatibility).
-*   [ ] **Wildcard Topic Subscription:**
-    *   [ ] Add new environment variable `MQTT_TOPIC_PREFIX` (e.g., `home/lcars_panel/`).
-    *   [ ] Modify `client.subscribe()` to use the prefix with a wildcard (e.g., `home/lcars_panel/#`).
-    *   [ ] Remove/deprecate `TOPIC_TITLE` and `TOPIC_BODY` for subscription purposes.
-*   [ ] **JSON Message Parsing:**
-    *   [ ] In `on_mqtt` callback, attempt to parse `msg.payload.decode()` using `json.loads()`.
-    *   [ ] Define initial expected JSON structure (e.g., `{"message": "text", "importance": "info", "source": "device_name"}`).
-    *   [ ] Implement error handling for malformed JSON.
-*   [ ] **Message Storage:**
-    *   [ ] Replace `current = {"title": "", "body": ""}` with a list or `collections.deque` to store incoming message objects (parsed from JSON).
-    *   [ ] Each item in the list should be a dictionary or a simple class instance representing the parsed message.
+*   [x] **Wildcard Topic Subscription:**
+    *   [x] Add new environment variable `MQTT_TOPIC_PREFIX` (e.g., `home/lcars_panel/`).
+    *   [x] Modify `client.subscribe()` to use the prefix with a wildcard (e.g., `home/lcars_panel/#`).
+    *   [x] Remove/deprecate `TOPIC_TITLE` and `TOPIC_BODY` for subscription purposes.
+*   [x] **JSON Message Parsing:**
+    *   [x] In `on_mqtt` callback, attempt to parse `msg.payload.decode()` using `json.loads()`.
+    *   [x] Define initial expected JSON structure (e.g., `{"message": "text", "importance": "info", "source": "device_name"}`).
+    *   [x] Implement error handling for malformed JSON.
+*   [x] **Message Storage:**
+    *   [x] Replace `current = {"title": "", "body": ""}` with a list or `collections.deque` to store incoming message objects (parsed from JSON).
+    *   [x] Each item in the list should be a dictionary or a simple class instance representing the parsed message.
 
 ## Phase 2: Rolling Display & Fixed Title
 *   [ ] **Fixed Title:**

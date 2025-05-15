@@ -21,9 +21,11 @@ To move the console off the TFT (if it still appears):
 ————————————————————————————————————————————————————————
 """
 from __future__ import annotations
-import mmap, os, struct, fcntl, sys, signal, textwrap, ctypes, array, argparse
+import mmap, os, struct, fcntl, sys, signal, textwrap, ctypes, array, argparse, json
 from pathlib import Path
 from dataclasses import dataclass
+from collections import deque
+from datetime import datetime
 
 import paho.mqtt.client as mqtt
 from PIL import Image, ImageDraw, ImageFont
@@ -75,8 +77,8 @@ TITLE_FONT   = ImageFont.truetype(
 BODY_FONT    = ImageFont.truetype(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
 
-TOPIC_TITLE = os.getenv("TOPIC_TITLE", "home/alert/title")
-TOPIC_BODY  = os.getenv("TOPIC_BODY",  "home/alert/body")
+MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
+MAX_MESSAGES_IN_STORE = 50 # Max number of messages to keep in the rolling display
 
 # ---------------------------------------------------------------------------
 # Framebuffer object and helpers
@@ -170,15 +172,44 @@ def probe(shape: str = "square", fill: bool = False):
 # ---------------------------------------------------------------------------
 # MQTT machinery
 # ---------------------------------------------------------------------------
-current = {"title": "", "body": ""}
+messages_store = deque(maxlen=MAX_MESSAGES_IN_STORE)
 
 def on_mqtt(client, userdata, msg):
-    print(msg)
-    if msg.topic == TOPIC_TITLE:
-        current["title"] = msg.payload.decode(errors="ignore")
-    elif msg.topic == TOPIC_BODY:
-        current["body"] = msg.payload.decode(errors="ignore")
-    render(current["title"], current["body"])
+    """Handles incoming MQTT messages."""
+    try:
+        payload_str = msg.payload.decode(errors="ignore")
+        print(f"Received message on topic {msg.topic}: {payload_str}")
+        data = json.loads(payload_str)
+
+        text_content = data.get("message")
+        if not text_content:
+            print("Error: Received JSON message is missing mandatory 'message' field.")
+            return
+
+        source = data.get("source", "Unknown")
+        importance = data.get("importance", "info")
+        # Use provided timestamp or default to current time in ISO format
+        timestamp_str = data.get("timestamp", datetime.now().isoformat())
+
+        new_message = {
+            "text": text_content,
+            "source": source,
+            "importance": importance,
+            "timestamp": timestamp_str,
+            "topic": msg.topic # Store the original topic for potential future use
+        }
+        messages_store.append(new_message)
+        print(f"Stored new message: {new_message}")
+        # print(f"Current messages_store: {list(messages_store)}") # Uncomment for debugging
+
+        # Rendering will be handled in Phase 2. For now, we just store.
+        # The old render call is removed as it's incompatible with the new message structure.
+        # render(current["title"], current["body"]) # OLD RENDER CALL
+
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from topic {msg.topic}: {payload_str}")
+    except Exception as e:
+        print(f"An unexpected error occurred in on_mqtt: {e}")
 
 
 def main():
@@ -197,14 +228,18 @@ def main():
         render("MQTT Panel", "This is only a\nDEBUG splash.")
         fb.close(); sys.exit(0)
 
-    client = mqtt.Client()
+    client = mqtt.Client(protocol=mqtt.MQTTv5)
     client.on_message = on_mqtt
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
     client.connect(os.getenv("MQTT_HOST", "example-host.local"),
                    int(os.getenv("MQTT_PORT", 1883)))
-    client.subscribe([(TOPIC_TITLE, 0), (TOPIC_BODY, 0)])
+    
+    subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
+    client.subscribe(subscription_topic)
+    print(f"Subscribed to: {subscription_topic}")
 
     def bye(*_):
+        blank() # Clear screen on exit
         fb.close(); sys.exit(0)
     signal.signal(signal.SIGINT, bye); signal.signal(signal.SIGTERM, bye)
 
