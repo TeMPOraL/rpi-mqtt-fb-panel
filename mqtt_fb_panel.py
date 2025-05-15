@@ -21,338 +21,73 @@ To move the console off the TFT (if it still appears):
 ————————————————————————————————————————————————————————
 """
 from __future__ import annotations
-import mmap, os, struct, fcntl, sys, signal, textwrap, ctypes, array, argparse, json
-from pathlib import Path
-from dataclasses import dataclass
+import os, sys, signal, textwrap, argparse, json
 from collections import deque
 from datetime import datetime
 
 import paho.mqtt.client as mqtt
-from PIL import Image, ImageDraw, ImageFont
-import numpy as np
+from PIL import Image, ImageDraw
+
+# Project-specific modules
+import lcars_constants as lc
+from framebuffer_utils import fb, push, blank, WIDTH, HEIGHT
+from lcars_drawing_utils import text_size # text_size is used for message rendering calculations
+from lcars_ui_components import render_top_bar, render_bottom_bar
+
 
 # ---------------------------------------------------------------------------
-# Framebuffer access helpers
+# Global Application Settings (from environment or defaults)
 # ---------------------------------------------------------------------------
-FBIOGET_VSCREENINFO = 0x4600  # struct fb_var_screeninfo
-
-@dataclass
-class FB:
-    fd: int
-    mem: mmap.mmap
-    width: int
-    height: int
-    bpp: int
-    stride: int
-
-    def close(self):
-        self.mem.close(); os.close(self.fd)
-
-
-def open_fb(dev: str | None = None) -> FB:
-    """Open the framebuffer (env FBDEV overrides *dev*). Works on 32‑bit Pi."""
-    dev = os.getenv("FBDEV", dev or "/dev/fb0")
-    fd = os.open(dev, os.O_RDWR | os.O_SYNC)
-
-    # Read basic geometry
-    vs = array.array('I', [0] * 40)              # enough for struct fb_var_screeninfo
-    fcntl.ioctl(fd, FBIOGET_VSCREENINFO, vs, True)
-    xres, yres, bpp = vs[0], vs[1], vs[6]
-
-    stride = (xres * bpp + 7) // 8               # bytes per line (safe on 32‑bit)
-    size   = stride * yres                       # mmap len ≤ a few MB
-    mem = mmap.mmap(fd, size, mmap.MAP_SHARED, mmap.PROT_WRITE | mmap.PROT_READ)
-    return FB(fd, mem, xres, yres, bpp, stride)
-
-# ---------------------------------------------------------------------------
-# Rendering constants (tweak to taste)
-#
-# LCARS colors via https://www.thelcars.com/colors.php
-# Quick ref of colors used or considered to be used:
-# - TNG orange - #FF8800 rgb(255, 136, 0)
-# - TNG african-violet - #CC99FF (lavender) rgb(204, 153, 255)
-# - TNG light yellow (buttons) - #ffcb5f rgb(255, 203, 95)
-# - TNG orange (buttons) - #ff9d00 rgb(255, 157, 0)
-# - TNG light blue (buttons) - #9ba2ff rgb(155, 162, 255)
-# - TNG red (buttons) - #d47065 rgb(212, 112, 101)
-# - TNG more saturated light yellow (buttons) - #ffcd5c rgb(255, 205, 92)
-# - White (text highlight, red alert) - #FFFFFF rgb(255, 255, 255)
-# - Black (button labels) - #000000 rgb(0, 0, 0)
-# - Red (red alert primary) - #FF0000 rgb(255, 0, 0)
-# ---------------------------------------------------------------------------
-ROTATE       = int(os.getenv("DISPLAY_ROTATE", 0)) # 0 / 90 / 180 / 270
-BG_COLOUR    = (0, 0, 0) # Black
-
-# Core LCARS Colors (TNG/VOY inspired)
-LCARS_ORANGE = (255, 157, 0)      # Main interactive elements, bars
-LCARS_BLUE = (155, 162, 255)        # Secondary elements, some buttons
-LCARS_YELLOW = (255, 203, 95)       # Accent elements, some buttons
-LCARS_RED_DARK = (212, 112, 101)    # Warning/Alert buttons or accents
-LCARS_BEIGE = (255, 204, 153)       # Often used for text or backgrounds in some schemes
-LCARS_PURPLE_LIGHT = (204, 153, 255) # Body text, info messages
-
-# Text Colors
-TEXT_COLOR_TITLE = LCARS_ORANGE
-TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT
-TEXT_COLOR_BUTTON_LABEL = (0, 0, 0) # Black
-TEXT_COLOR_HIGHLIGHT = (255, 255, 255) # White
-
-# Specific UI Element Colors (can be overridden by a theme later)
-COLOR_BARS = LCARS_ORANGE
-COLOR_BUTTON_CLEAR = LCARS_RED_DARK
-COLOR_BUTTON_RELATIVE = LCARS_BLUE
-COLOR_BUTTON_CLOCK = LCARS_YELLOW
-
-PROBE_COLOUR = (255, 0, 255) # Magenta for probe
-
-# NOTE: references a proper LCARS font that's (apparently) free for personal use.
-# Not distributing it with this project. Alternatives include Antionio. Or just
-# web-search for something if you don't have this one.
-TITLE_FONT   = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 34)
-BODY_FONT    = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 28)
-
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
-LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL")
+LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL") # Currently not used directly in UI
 MAX_MESSAGES_IN_STORE = 50 # Max number of messages to keep in the rolling display
 
 # ---------------------------------------------------------------------------
-# Framebuffer object and helpers
+# Message Rendering Logic
 # ---------------------------------------------------------------------------
-fb = open_fb()
-WIDTH, HEIGHT = (fb.width, fb.height) if ROTATE in (0, 180) else (fb.height, fb.width)
-
-print(WIDTH)
-print(HEIGHT)
-# ---------------------------------------------------------------------------
-# Pillow helpers compatible with >=10 & <10
-# ---------------------------------------------------------------------------
-
-def text_size(draw: ImageDraw.ImageDraw, txt: str, font: ImageFont.ImageFont):
-    """Return (w,h) for *txt* regardless of Pillow version."""
-    if hasattr(draw, "textbbox"):
-        x0,y0,x1,y1 = draw.textbbox((0,0), txt, font=font)
-        return x1-x0, y1-y0
-    return draw.textsize(txt, font=font)  # Pillow<10
-
-# ---------------------------------------------------------------------------
-# LCARS Drawing Helpers
-# ---------------------------------------------------------------------------
-def draw_lcars_shape(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, radius: int,
-                     color_bg, left_round: bool = False, right_round: bool = False):
-    """
-    Draws an LCARS-style shape (rectangle with optional rounded ends).
-    Radius is typically h // 2 for semi-circular ends.
-    """
-    if radius > min(w / 2, h / 2) and (left_round or right_round): # Avoid radius too large for shape
-        radius = min(w // 2, h // 2)
-
-    if left_round and right_round: # Pill shape
-        draw.rectangle((x + radius, y, x + w - radius, y + h), fill=color_bg)
-        draw.pieslice((x, y, x + 2 * radius, y + h), 90, 270, fill=color_bg)
-        draw.pieslice((x + w - 2 * radius, y, x + w, y + h), -90, 90, fill=color_bg)
-    elif left_round: # (] shape
-        draw.rectangle((x + radius, y, x + w, y + h), fill=color_bg)
-        draw.pieslice((x, y, x + 2 * radius, y + h), 90, 270, fill=color_bg)
-    elif right_round: # [) shape
-        draw.rectangle((x, y, x + w - radius, y + h), fill=color_bg)
-        draw.pieslice((x + w - 2 * radius, y, x + w, y + h), -90, 90, fill=color_bg)
-    else: # [] shape (rectangle)
-        draw.rectangle((x, y, x + w, y + h), fill=color_bg)
-
-def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont,
-                      rect_x: int, rect_y: int, rect_w: int, rect_h: int,
-                      text_color, align: str = "center", padding_x: int = 5):
-    """Draws text within a given rectangle, with alignment."""
-    text_w, text_h = text_size(draw, text, font=font)
-    
-    if align == "center":
-        text_x_offset = (rect_w - text_w) // 2
-    elif align == "left":
-        text_x_offset = padding_x
-    elif align == "right":
-        text_x_offset = rect_w - text_w - padding_x
-    else: # default to center
-        text_x_offset = (rect_w - text_w) // 2
-
-    # Ensure text doesn't overflow if rect is too small (basic clipping)
-    if text_w > rect_w - 2 * padding_x and align != "center": # allow center to overflow if needed
-        # Could implement truncation here if desired: text = text[:max_chars] + "..."
-        pass # For now, let it draw, might be visually clipped by rect boundaries if text is too long
-
-    text_x = rect_x + text_x_offset
-    text_y = rect_y + (rect_h - text_h) // 2
-    draw.text((text_x, text_y), text, font=font, fill=text_color)
-
-# ---------------------------------------------------------------------------
-# Framebuffer Blitting
-# ---------------------------------------------------------------------------
-def push(img: Image.Image):
-    """Convert PIL image to native RGB565 and blit to the framebuffer."""
-    if ROTATE:
-        img = img.rotate(ROTATE, expand=True)
-
-    if fb.bpp == 16:  # RGB565 path
-        rgb = np.asarray(img.convert("RGB"), dtype=np.uint16)
-        r = (rgb[..., 0] >> 3) & 0x1F
-        g = (rgb[..., 1] >> 2) & 0x3F
-        b = (rgb[..., 2] >> 3) & 0x1F
-        rgb565 = (r << 11) | (g << 5) | b
-        fb.mem.seek(0)
-        fb.mem.write(rgb565.astype('<u2').tobytes())
-    else:
-        # Fall‑back: XRGB8888 – assume little‑endian
-        argb = np.asarray(img.convert("RGB"), dtype=np.uint8)
-        a = np.full_like(argb[..., 0:1], 255)
-        bgra = np.dstack((argb[..., 2:3], argb[..., 1:2], argb[..., 0:1], a))
-        fb.mem.seek(0); fb.mem.write(bgra.tobytes())
-
-
-def blank():
-    push(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOUR))
-
-
 def render_messages():
-    """Renders the fixed title and a rolling list of messages from messages_store."""
-    img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOUR)
+    """Renders the LCARS UI and a rolling list of messages from messages_store."""
+    img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
     draw = ImageDraw.Draw(img)
 
-    # LCARS UI Dimensions
-    PADDING = 5  # General padding
-    BAR_HEIGHT = TITLE_FONT.size + PADDING * 2 # Height of top and bottom bars
-    CORNER_RADIUS = BAR_HEIGHT // 2
-    BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
+    # 1. Draw LCARS UI Chrome (Top and Bottom Bars)
+    render_top_bar(draw, WIDTH)
+    render_bottom_bar(draw, WIDTH, HEIGHT)
 
-    # --- 1. Draw Top Bar: (] [============================] EVENT LOG [) ---
-    TOP_BAR_Y = PADDING
-    # Left Terminator (])
-    left_terminator_width = BAR_HEIGHT # Width of the terminator element
-    draw_lcars_shape(draw, PADDING, TOP_BAR_Y, left_terminator_width, BAR_HEIGHT, CORNER_RADIUS, COLOR_BARS, left_round=True)
-
-    # Right Terminator [)
-    right_terminator_width = BAR_HEIGHT # Width of the terminator element
-    draw_lcars_shape(draw, WIDTH - PADDING - right_terminator_width, TOP_BAR_Y, right_terminator_width, BAR_HEIGHT, CORNER_RADIUS, COLOR_BARS, right_round=True)
-    
-    # Central Bar Label "EVENT LOG"
-    # Calculate width for the bar that holds "EVENT LOG"
-    # It sits between the terminators, but "EVENT LOG" is to the right of a connecting bar segment
-    event_log_text = "EVENT LOG"
-    event_log_text_w, _ = text_size(draw, event_log_text, TITLE_FONT)
-    
-    # Connecting bar from left terminator to "EVENT LOG" area
-    conn_bar_x_start = PADDING + left_terminator_width
-    # Estimate some space for the "bar" part of "[============================]"
-    # This is a bit of visual tuning. Let's say the label takes up its width + some padding.
-    # The remaining space is split.
-    total_bar_area_width = WIDTH - (2 * PADDING) - left_terminator_width - right_terminator_width
-    
-    # Position "EVENT LOG" text. For mockup: (] [long_bar] TEXT [)
-    # The long_bar_width needs to be calculated.
-    # Let's make the text element a fixed width or a portion of the central bar area.
-    # For simplicity, let the text element be separate and placed.
-    # The mockup implies: (] + Bar + Text_Element + [)
-    # Let Text_Element be a rectangle.
-    text_element_width = event_log_text_w + 4 * BUTTON_PADDING_X # Text width + generous padding
-    text_element_x = WIDTH - PADDING - right_terminator_width - text_element_width
-
-    # Main bar segment before the text element
-    main_bar_width = text_element_x - conn_bar_x_start
-    if main_bar_width > 0:
-        draw_lcars_shape(draw, conn_bar_x_start, TOP_BAR_Y, main_bar_width, BAR_HEIGHT, 0, COLOR_BARS) # No rounding for this segment
-
-    # "EVENT LOG" text element (as a non-rounded bar for its background)
-    # This element itself is not rounded in the mockup, it's just text on the bar.
-    # So, the main_bar_width should extend up to the right terminator, and text is drawn on it.
-    # Revised logic for top bar: (] + Main_Bar_with_Text + [)
-    main_bar_x = PADDING + left_terminator_width
-    main_bar_w = WIDTH - (2 * PADDING) - left_terminator_width - right_terminator_width
-    if main_bar_w > 0:
-        draw_lcars_shape(draw, main_bar_x, TOP_BAR_Y, main_bar_w, BAR_HEIGHT, 0, COLOR_BARS) # Central bar
-        draw_text_in_rect(draw, event_log_text, TITLE_FONT,
-                          main_bar_x, TOP_BAR_Y, main_bar_w, BAR_HEIGHT,
-                          TEXT_COLOR_TITLE, align="center", padding_x=BUTTON_PADDING_X)
-
-
-    # --- 2. Draw Bottom Bar: (] MQTT STREAM [CLEAR] [RELATIVE] [CLOCK] [==) ---
-    BOTTOM_BAR_Y = HEIGHT - PADDING - BAR_HEIGHT
-    
-    # Left Terminator (]) for bottom bar
-    draw_lcars_shape(draw, PADDING, BOTTOM_BAR_Y, left_terminator_width, BAR_HEIGHT, CORNER_RADIUS, COLOR_BARS, left_round=True)
-
-    # "MQTT STREAM" Label
-    mqtt_stream_text = "MQTT STREAM"
-    mqtt_stream_text_w, _ = text_size(draw, mqtt_stream_text, TITLE_FONT)
-    mqtt_stream_label_x = PADDING + left_terminator_width + BUTTON_PADDING_X
-    # Draw text directly on the bar, or give it a small bar segment
-    # For now, draw text directly after left terminator
-    # We need a bar segment for "MQTT STREAM"
-    mqtt_stream_bar_w = mqtt_stream_text_w + 2 * BUTTON_PADDING_X
-    draw_lcars_shape(draw, PADDING + left_terminator_width, BOTTOM_BAR_Y, mqtt_stream_bar_w, BAR_HEIGHT, 0, COLOR_BARS)
-    draw_text_in_rect(draw, mqtt_stream_text, TITLE_FONT,
-                      PADDING + left_terminator_width, BOTTOM_BAR_Y, mqtt_stream_bar_w, BAR_HEIGHT,
-                      TEXT_COLOR_TITLE, align="center")
-
-    current_x_bottom_bar = PADDING + left_terminator_width + mqtt_stream_bar_w + PADDING
-
-    # Buttons: [CLEAR], [RELATIVE], [CLOCK]
-    button_texts = ["CLEAR", "RELATIVE", "CLOCK"]
-    button_colors = [COLOR_BUTTON_CLEAR, COLOR_BUTTON_RELATIVE, COLOR_BUTTON_CLOCK]
-    
-    for i, btn_text in enumerate(button_texts):
-        btn_w, _ = text_size(draw, btn_text, BODY_FONT)
-        button_total_width = btn_w + 2 * BUTTON_PADDING_X
-        draw_lcars_shape(draw, current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, BAR_HEIGHT, 0, button_colors[i]) # Square buttons
-        draw_text_in_rect(draw, btn_text, BODY_FONT,
-                          current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, BAR_HEIGHT,
-                          TEXT_COLOR_BUTTON_LABEL, align="center")
-        current_x_bottom_bar += button_total_width + PADDING
-
-    # Right Fill Bar [==)
-    right_fill_bar_x = current_x_bottom_bar
-    right_fill_bar_w = WIDTH - PADDING - right_fill_bar_x 
-    if right_fill_bar_w > CORNER_RADIUS : # Ensure there's enough space for the rounded end
-        draw_lcars_shape(draw, right_fill_bar_x, BOTTOM_BAR_Y, right_fill_bar_w, BAR_HEIGHT, CORNER_RADIUS, COLOR_BARS, right_round=True)
-    elif right_fill_bar_w > 0: # If not enough for rounding, draw square
-        draw_lcars_shape(draw, right_fill_bar_x, BOTTOM_BAR_Y, right_fill_bar_w, BAR_HEIGHT, 0, COLOR_BARS)
-
-
-    # --- 3. Define Message Display Area & Columns ---
-    message_area_y_start = TOP_BAR_Y + BAR_HEIGHT + PADDING
-    message_area_y_end = BOTTOM_BAR_Y - PADDING
+    # 2. Define Message Display Area & Columns (between top and bottom bars)
+    # These calculations depend on constants from lc (lc.PADDING, lc.BAR_HEIGHT)
+    message_area_y_start = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING
+    message_area_y_end = HEIGHT - lc.PADDING - lc.BAR_HEIGHT - lc.PADDING
     message_area_height = message_area_y_end - message_area_y_start
     
-    message_line_height = BODY_FONT.size + 4  # Font size + padding between lines
+    message_line_height = lc.BODY_FONT.size + 4  # Font size + padding between lines
     
     # Column definitions
     col_source_max_chars = 20
     # Estimate source col width based on M chars, or use a fraction of screen.
     # Using M chars is more font-robust.
-    source_char_w = text_size(draw, "M", BODY_FONT)[0] if text_size(draw, "M", BODY_FONT)[0] > 0 else BODY_FONT.size * 0.6
-    col_source_width = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + PADDING))
+    # text_size is now imported from lcars_drawing_utils
+    source_char_w_tuple = text_size(draw, "M", lc.BODY_FONT)
+    source_char_w = source_char_w_tuple[0] if source_char_w_tuple[0] > 0 else lc.BODY_FONT.size * 0.6
+    
+    col_source_width = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
     
     col_time_text_example = "00:00:00"
-    col_time_width = text_size(draw, col_time_text_example, BODY_FONT)[0] + PADDING
+    col_time_width = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING
 
-    col_source_x = PADDING
-    col_time_x = WIDTH - PADDING - col_time_width
+    col_source_x = lc.PADDING
+    # Time column is right-aligned, so its x is not fixed but calculated per line for alignment
     
-    col_message_x = col_source_x + col_source_width + PADDING
-    col_message_width = col_time_x - col_message_x - PADDING
+    col_message_x = col_source_x + col_source_width + lc.PADDING
+    # Message width needs to account for the time column on the right
+    # The space for time column is col_time_width.
+    # So, message area ends at WIDTH - lc.PADDING - col_time_width - lc.PADDING (for msg padding)
+    col_message_width = (WIDTH - lc.PADDING - col_time_width - lc.PADDING) - col_message_x
 
-    # --- 4. Prepare and Render Messages ---
-    display_lines = [] # This will store tuples of (x, y, text, font, color) for drawing
 
-    # Estimate avg char width for message wrapping.
-    avg_char_width_message = source_char_w # Re-use, or calculate for typical chars
-
-    current_render_y = message_area_y_start
-    
-    # Iterate a copy of messages_store, from oldest to newest for top-to-bottom display
-    # but we want latest messages if list is too long, so process in reverse and take head.
-    # Or, more simply, let deque handle maxlen and draw what fits from the end of deque.
-    
+    # 3. Prepare and Render Messages
     processed_message_lines = []
+    avg_char_width_message = source_char_w # Re-use for message wrapping estimation
 
     for msg_obj in list(messages_store): # Iterate a copy
         try:
@@ -434,14 +169,14 @@ def probe(shape: str = "square", fill: bool = False):
 
     if shape == "circle":
         if fill:
-            draw.ellipse((x0, y0, x1, y1), fill=PROBE_COLOUR)
+            draw.ellipse((x0, y0, x1, y1), fill=lc.PROBE_COLOUR)
         else:
-            draw.ellipse((x0, y0, x1, y1), outline=PROBE_COLOUR, width=4)
+            draw.ellipse((x0, y0, x1, y1), outline=lc.PROBE_COLOUR, width=4)
     else:  # square
         if fill:
-            draw.rectangle((x0, y0, x1, y1), fill=PROBE_COLOUR)
+            draw.rectangle((x0, y0, x1, y1), fill=lc.PROBE_COLOUR)
         else:
-            draw.rectangle((x0, y0, x1, y1), outline=PROBE_COLOUR, width=4)
+            draw.rectangle((x0, y0, x1, y1), outline=lc.PROBE_COLOUR, width=4)
     push(img)
 
 # ---------------------------------------------------------------------------
