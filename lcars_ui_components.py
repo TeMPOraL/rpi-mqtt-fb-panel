@@ -31,8 +31,9 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     # lc.PADDING is the Y offset for the top bar.
     text_y_coordinate = lc.PADDING + (lc.BAR_HEIGHT - event_log_text_h) // 2
     
-    # Draw the "EVENT LOG" text directly on the background.
-    draw.text((text_x_coordinate, text_y_coordinate), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE)
+    # Draw the "EVENT LOG" text directly on the background, using "lt" (left-top) anchor.
+    # text_x_coordinate and text_y_coordinate are calculated as the top-left point for the text.
+    draw.text((text_x_coordinate, text_y_coordinate), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="lt")
 
     # Draw the Main Bar Segment.
     # It starts after the Left Terminator and ends before the "EVENT LOG" text.

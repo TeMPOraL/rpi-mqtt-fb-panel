@@ -93,10 +93,26 @@ def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.Imag
     # The caller should ensure text fits or handle truncation.
 
     text_x = rect_x + text_x_offset
-    # Calculate text Y position (vertical centering)
-    # text_h from text_size is often the full ascent+descent.
-    # For more precise vertical centering, one might use font metrics.
-    # (rect_h - text_h) // 2 centers the bounding box of the text.
-    text_y = rect_y + (rect_h - text_h) // 2
+    # Calculate text Y position (vertical centering for the top of the text's bounding box)
+    text_y_for_top_anchor = rect_y + (rect_h - text_h) // 2
+
+    # Determine horizontal anchor character and X coordinate for that anchor point
+    # The text_x_offset calculated earlier was for the left edge of the text.
+    # We need to recalculate x_coord_for_anchor based on the desired anchor.
+    if align == "center":
+        anchor_char_h = "m"  # Middle
+        x_coord_for_anchor = rect_x + rect_w // 2
+    elif align == "left":
+        anchor_char_h = "l"  # Left
+        x_coord_for_anchor = rect_x + padding_x
+    elif align == "right":
+        anchor_char_h = "r"  # Right
+        # For right anchor, x_coord is rect_x + rect_w - padding_x (right edge of padded rect)
+        x_coord_for_anchor = rect_x + rect_w - padding_x
+    else:  # Default to center
+        anchor_char_h = "m"
+        x_coord_for_anchor = rect_x + rect_w // 2
     
-    draw.text((text_x, text_y), text, font=font, fill=text_color)
+    final_anchor = f"{anchor_char_h}t"  # e.g., "lt", "mt", "rt" (t for top)
+    
+    draw.text((x_coord_for_anchor, text_y_for_top_anchor), text, font=font, fill=text_color, anchor=final_anchor)
