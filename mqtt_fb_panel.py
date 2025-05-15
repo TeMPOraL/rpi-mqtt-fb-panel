@@ -77,11 +77,14 @@ BG_COLOUR    = (0, 0, 0)
 TITLE_COLOUR = (255, 136, 0) # TNG orange
 BODY_COLOUR  = (204, 153, 255) # TNG african-violet
 PROBE_COLOUR = (255, 0, 255)
-# TODO: upload proper Trek font
+
+# NOTE: references a proper LCARS font that's (apparently) free for personal use.
+# Not distributing it with this project. Alternatives include Antionio. Or just
+# web-search for something if you don't have this one.
 TITLE_FONT   = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 28)
 BODY_FONT    = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 22)
 
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
 LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL")
