@@ -35,7 +35,8 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] User has provided and configured an LCARS-style `.ttf` font.
     *   [x] Font loading updated by user.
     *   [x] Font sizes may need further adjustment as UI evolves.
-*   [x] **Basic LCARS Graphics (In Progress):**
+    *   [x] `LCARS_FONT_PATH` environment variable added for font configuration.
+*   [x] **Basic LCARS Graphics (Complete):**
     *   [x] Define extended LCARS color palette (new constants added).
     *   [x] Implement helper function for drawing LCARS shapes (rectangles with optional rounded ends).
     *   [x] Redesign `render` function for new LCARS layout:

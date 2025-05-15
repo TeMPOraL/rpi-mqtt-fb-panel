@@ -24,6 +24,8 @@ from __future__ import annotations
 import os, sys, signal, textwrap, argparse, json
 from collections import deque
 from datetime import datetime
+from dataclasses import dataclass
+from typing import Optional # Optional will be used by the dataclass if we add optional fields later
 
 import paho.mqtt.client as mqtt
 from PIL import Image, ImageDraw
@@ -40,13 +42,92 @@ from lcars_ui_components import render_top_bar, render_bottom_bar
 # ---------------------------------------------------------------------------
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
 LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL") # Currently not used directly in UI
-MAX_MESSAGES_IN_STORE = 50 # Max number of messages to keep in the rolling display
+MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
+MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
 
 # ---------------------------------------------------------------------------
-# Message Rendering Logic
+# Message Dataclass
+# ---------------------------------------------------------------------------
+@dataclass
+class Message:
+    text: str
+    source: str
+    importance: str
+    timestamp: datetime # Store as datetime object
+    topic: str
+
+# ---------------------------------------------------------------------------
+# Message Area Layout Calculation
+# ---------------------------------------------------------------------------
+def _calculate_message_area_layout(draw: ImageDraw.ImageDraw) -> dict:
+    """Calculates dimensions and positions for the message display area and its columns."""
+    layout = {}
+    layout['message_area_y_start'] = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING
+    layout['message_area_y_end'] = HEIGHT - lc.PADDING - lc.BAR_HEIGHT - lc.PADDING
+    layout['message_area_height'] = layout['message_area_y_end'] - layout['message_area_y_start']
+    layout['message_line_height'] = lc.BODY_FONT.size + 4  # Font size + padding between lines
+
+    # Column definitions
+    col_source_max_chars = 20
+    # Estimate source col width based on M chars, or use a fraction of screen.
+    source_char_w_tuple = text_size(draw, "M", lc.BODY_FONT)
+    source_char_w = source_char_w_tuple[0] if source_char_w_tuple[0] > 0 else lc.BODY_FONT.size * 0.6
+    layout['avg_char_width_message'] = source_char_w # Used for message wrapping
+
+    layout['col_source_width'] = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
+
+    col_time_text_example = "00:00:00"
+    layout['col_time_width'] = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING
+
+    layout['col_source_x'] = MESSAGE_AREA_HORIZONTAL_PADDING
+    layout['col_message_x'] = layout['col_source_x'] + layout['col_source_width'] + lc.PADDING
+    
+    layout['col_message_width'] = (WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - layout['col_time_width'] - lc.PADDING) - layout['col_message_x']
+    
+    return layout
+
+# ---------------------------------------------------------------------------
+# Message Processing for Display
+# ---------------------------------------------------------------------------
+def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process: list[Message], layout: dict) -> list[dict]:
+    """Formats and wraps messages from the store into lines suitable for display."""
+    processed_message_lines = []
+    col_source_max_chars = 20 # Should ideally come from layout or be a constant
+
+    for msg_obj in messages_to_process:
+        ts_str = msg_obj.timestamp.strftime("%H:%M:%S")
+
+        source_text = msg_obj.source
+        if len(source_text) > col_source_max_chars:
+            source_text = source_text[:col_source_max_chars-3] + "..."
+
+        message_text_content = msg_obj.text
+
+        if layout['avg_char_width_message'] > 0 and layout['col_message_width'] > 0:
+            chars_for_message_col = max(1, int(layout['col_message_width'] / layout['avg_char_width_message']))
+            wrapped_message_lines = textwrap.wrap(message_text_content, width=chars_for_message_col)
+        else:
+            wrapped_message_lines = [message_text_content] if message_text_content else [""]
+        
+        if not wrapped_message_lines and message_text_content:
+             wrapped_message_lines = [message_text_content]
+        elif not wrapped_message_lines:
+             wrapped_message_lines = [""]
+
+        processed_message_lines.append({
+            "source": source_text, "msg_part": wrapped_message_lines[0], "time": ts_str
+        })
+        for line_part in wrapped_message_lines[1:]:
+            processed_message_lines.append({
+                "source": "", "msg_part": line_part, "time": ""
+            })
+    return processed_message_lines
+
+# ---------------------------------------------------------------------------
+# Main Rendering Function
 # ---------------------------------------------------------------------------
 def render_messages():
-    """Renders the LCARS UI and a rolling list of messages from messages_store."""
+    """Renders the LCARS UI and a rolling list of messages."""
     img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
     draw = ImageDraw.Draw(img)
 
@@ -54,122 +135,40 @@ def render_messages():
     render_top_bar(draw, WIDTH)
     render_bottom_bar(draw, WIDTH, HEIGHT)
 
-    # 2. Define Message Display Area & Columns (between top and bottom bars)
-    # These calculations depend on constants from lc (lc.PADDING, lc.BAR_HEIGHT)
-    message_area_y_start = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING
-    message_area_y_end = HEIGHT - lc.PADDING - lc.BAR_HEIGHT - lc.PADDING
-    message_area_height = message_area_y_end - message_area_y_start
+    # 2. Calculate Message Area Layout
+    layout = _calculate_message_area_layout(draw)
 
-    message_line_height = lc.BODY_FONT.size + 4  # Font size + padding between lines
+    # 3. Prepare Messages for Display
+    # Create a copy for processing, as messages_store might be updated by MQTT thread
+    current_messages_snapshot = list(messages_store) 
+    processed_message_lines = _process_messages_for_display(draw, current_messages_snapshot, layout)
 
-    # Column definitions
-    col_source_max_chars = 20
-    # Estimate source col width based on M chars, or use a fraction of screen.
-    # Using M chars is more font-robust.
-    # text_size is now imported from lcars_drawing_utils
-    source_char_w_tuple = text_size(draw, "M", lc.BODY_FONT)
-    source_char_w = source_char_w_tuple[0] if source_char_w_tuple[0] > 0 else lc.BODY_FONT.size * 0.6
-
-    col_source_width = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
-
-    col_time_text_example = "00:00:00"
-    col_time_width = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING # Includes its own right padding
-
-    # Add extra lc.PADDING for left and right margins of the message list area
-    message_area_horizontal_margin = lc.PADDING * 2
-
-    col_source_x = message_area_horizontal_margin
-    # Time column is right-aligned, so its x is not fixed but calculated per line for alignment
-
-    col_message_x = col_source_x + col_source_width + lc.PADDING # lc.PADDING here is between source and message
-    
-    # Calculate message width:
-    # Available space for message text is from col_message_x to
-    # (WIDTH - message_area_horizontal_margin - col_time_width - lc.PADDING for msg/time padding)
-    # Note: col_time_width already includes its own padding for the time text from the right edge.
-    # The message area's right boundary for text is WIDTH - message_area_horizontal_margin.
-    # The time column will take col_time_width from this right boundary.
-    # The message text needs to end lc.PADDING before the time column conceptually starts.
-    
-    # Effective right boundary for message content before time column and its padding
-    message_content_right_boundary = WIDTH - message_area_horizontal_margin - col_time_width 
-                                     # (col_time_width includes padding for time text from edge)
-                                     # No, col_time_width is just text_size + lc.PADDING.
-                                     # The actual_time_x calculation handles alignment.
-
-    # Let's recalculate col_message_width based on new margins:
-    # Rightmost point for message text = (WIDTH - message_area_horizontal_margin) - col_time_width - lc.PADDING (padding between msg and time)
-    # Start point for message text = col_message_x
-    col_message_width = (WIDTH - message_area_horizontal_margin - col_time_width - lc.PADDING) - col_message_x
-
-
-    # 3. Prepare and Render Messages
-    processed_message_lines = []
-    avg_char_width_message = source_char_w # Re-use for message wrapping estimation
-
-    for msg_obj in list(messages_store): # Iterate a copy
-        try:
-            timestamp_dt = datetime.fromisoformat(msg_obj["timestamp"].replace('Z', '+00:00'))
-            ts_str = timestamp_dt.strftime("%H:%M:%S")
-        except ValueError:
-            ts_str = "??:??:??"
-
-        source_text = msg_obj.get('source', 'N/A')
-        if len(source_text) > col_source_max_chars:
-            source_text = source_text[:col_source_max_chars-3] + "..."
-
-        message_text_content = msg_obj.get('text', '')
-
-        # Wrap message_text_content
-        if avg_char_width_message > 0 and col_message_width > 0:
-            chars_for_message_col = max(1, int(col_message_width / avg_char_width_message))
-            wrapped_message_lines = textwrap.wrap(message_text_content, width=chars_for_message_col)
-        else: # Fallback if width is zero or negative
-            wrapped_message_lines = [message_text_content] if message_text_content else [""]
-
-        if not wrapped_message_lines and message_text_content: # textwrap might return empty for only spaces
-             wrapped_message_lines = [message_text_content]
-        elif not wrapped_message_lines: # Genuinely empty message
-             wrapped_message_lines = [""]
-
-
-        # First line of a message (source, first part of message, time)
-        processed_message_lines.append({
-            "source": source_text, "msg_part": wrapped_message_lines[0], "time": ts_str
-        })
-        # Subsequent lines of a wrapped message (only message part)
-        for line_part in wrapped_message_lines[1:]:
-            processed_message_lines.append({
-                "source": "", "msg_part": line_part, "time": ""
-            })
-
-    # Calculate how many lines fit and get the latest ones
+    # 4. Calculate how many lines fit and get the latest ones
     lines_to_render_on_screen = []
-    if message_line_height > 0 and message_area_height > 0:
-        max_displayable_message_lines = message_area_height // message_line_height
+    if layout['message_line_height'] > 0 and layout['message_area_height'] > 0:
+        max_displayable_message_lines = layout['message_area_height'] // layout['message_line_height']
         if max_displayable_message_lines > 0:
             lines_to_render_on_screen = processed_message_lines[-max_displayable_message_lines:]
 
-    # Draw the messages
-    current_render_y = message_area_y_start
+    # 5. Draw the messages
+    current_render_y = layout['message_area_y_start']
     for line_data in lines_to_render_on_screen:
         # Ensure text fits vertically before drawing
-        # Using BODY_FONT.size as an estimate of actual drawn height.
-        if current_render_y + lc.BODY_FONT.size > message_area_y_end:
+        if current_render_y + lc.BODY_FONT.size > layout['message_area_y_end']:
             break
 
-        if line_data["source"]: # Draw source only if it's the first line of a message
-            draw.text((col_source_x, current_render_y), line_data["source"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+        if line_data["source"]:
+            draw.text((layout['col_source_x'], current_render_y), line_data["source"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
 
-        draw.text((col_message_x, current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+        draw.text((layout['col_message_x'], current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
 
-        if line_data["time"]: # Draw time only if it's the first line of a message
+        if line_data["time"]:
             time_w, _ = text_size(draw, line_data["time"], lc.BODY_FONT)
-            # Align to far right edge of message area (screen minus new horizontal margin)
-            actual_time_x = WIDTH - message_area_horizontal_margin - time_w 
+            # Align to far right edge of message area (screen minus MESSAGE_AREA_HORIZONTAL_PADDING)
+            actual_time_x = WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - time_w 
             draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
 
-        current_render_y += message_line_height
+        current_render_y += layout['message_line_height']
 
     push(img)
 
@@ -219,34 +218,45 @@ def on_mqtt(client, userdata, msg):
 
         source = data.get("source", "Unknown")
         importance = data.get("importance", "info")
-        # Use provided timestamp or default to current time in ISO format
-        timestamp_str = data.get("timestamp", datetime.now().isoformat())
+        timestamp_str = data.get("timestamp")
 
-        new_message = {
-            "text": text_content,
-            "source": source,
-            "importance": importance,
-            "timestamp": timestamp_str,
-            "topic": msg.topic # Store the original topic for potential future use
-        }
-        messages_store.append(new_message)
-        print(f"Stored new message: {new_message}", flush=True)
-        # print(f"Current messages_store: {list(messages_store)}", flush=True) # Uncomment for debugging
+        timestamp_dt: datetime
+        if timestamp_str:
+            try:
+                # Handle 'Z' for UTC timezone explicitly for fromisoformat
+                if timestamp_str.endswith('Z'):
+                    timestamp_dt = datetime.fromisoformat(timestamp_str[:-1] + '+00:00')
+                else:
+                    timestamp_dt = datetime.fromisoformat(timestamp_str)
+            except ValueError:
+                print(f"Warning: Could not parse provided timestamp '{timestamp_str}'. Using current time.", flush=True)
+                timestamp_dt = datetime.now()
+        else:
+            timestamp_dt = datetime.now() # Default to current time if no timestamp provided
 
-        render_messages() # Trigger re-render with new message
+        new_msg_obj = Message(
+            text=text_content,
+            source=source,
+            importance=importance,
+            timestamp=timestamp_dt,
+            topic=msg.topic
+        )
+        messages_store.append(new_msg_obj)
+        print(f"Stored new message: {new_msg_obj}", flush=True)
+        render_messages()
 
     except json.JSONDecodeError:
         print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}", flush=True)
-        new_message = {
-            "text": payload_str,
-            "source": "Raw Text",
-            "importance": "info", # Or a new category like "raw_text"
-            "timestamp": datetime.now().isoformat(),
-            "topic": msg.topic
-        }
-        messages_store.append(new_message)
-        print(f"Stored raw text message: {new_message}", flush=True)
-        render_messages() # Trigger re-render with new raw message
+        raw_msg_obj = Message(
+            text=payload_str,
+            source="Raw Text",
+            importance="info",
+            timestamp=datetime.now(),
+            topic=msg.topic
+        )
+        messages_store.append(raw_msg_obj)
+        print(f"Stored raw text message: {raw_msg_obj}", flush=True)
+        render_messages()
     except Exception as e:
         print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}", flush=True)
 
@@ -265,19 +275,19 @@ def main():
         probe(args.probe, args.fill)
         fb.close(); sys.exit(0)
     if args.debug:
-        # Populate with sample messages for debug mode
-        messages_store.append({
-            "text": "This is a debug message for the LCARS panel.",
-            "source": "System", "importance": "info", "timestamp": datetime.now().isoformat()
-        })
-        messages_store.append({
-            "text": "Another short one.",
-            "source": "Debug", "importance": "info", "timestamp": datetime.now().isoformat()
-        })
-        messages_store.append({
-            "text": "This is a slightly longer debug message that should demonstrate how text wrapping might work on the display, hopefully spanning multiple lines if necessary.",
-            "source": "Debugger", "importance": "info", "timestamp": datetime.now().isoformat()
-        })
+        # Populate with sample messages for debug mode using the Message dataclass
+        messages_store.append(Message(
+            text="This is a debug message for the LCARS panel.",
+            source="System", importance="info", timestamp=datetime.now(), topic="debug/system"
+        ))
+        messages_store.append(Message(
+            text="Another short one.",
+            source="Debug", importance="info", timestamp=datetime.now(), topic="debug/short"
+        ))
+        messages_store.append(Message(
+            text="This is a slightly longer debug message that should demonstrate how text wrapping might work on the display, hopefully spanning multiple lines if necessary.",
+            source="Debugger", importance="info", timestamp=datetime.now(), topic="debug/long"
+        ))
         render_messages()
         fb.close(); sys.exit(0)
 

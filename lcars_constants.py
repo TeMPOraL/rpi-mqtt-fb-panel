@@ -41,16 +41,28 @@ PROBE_COLOUR = (255, 0, 255) # Magenta for probe
 # NOTE: references a proper LCARS font that's (apparently) free for personal use.
 # Not distributing it with this project. Alternatives include Antionio. Or just
 # web-search for something if you don't have this one.
+# Font path can be overridden by LCARS_FONT_PATH environment variable.
 # ---------------------------------------------------------------------------
+LCARS_FONT_PATH = os.getenv("LCARS_FONT_PATH")
+
+# Default font paths if LCARS_FONT_PATH is not set or font at path not found
+DEFAULT_LCARS_FONT_PATH = "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf"
+FALLBACK_FONT_PATH = "DejaVuSans.ttf"
+
 try:
-    TITLE_FONT   = ImageFont.truetype(
-        "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 34)
-    BODY_FONT    = ImageFont.truetype(
-        "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 28)
+    font_path_to_try = LCARS_FONT_PATH if LCARS_FONT_PATH else DEFAULT_LCARS_FONT_PATH
+    TITLE_FONT   = ImageFont.truetype(font_path_to_try, 34)
+    BODY_FONT    = ImageFont.truetype(font_path_to_try, 28)
+    if LCARS_FONT_PATH and not os.path.exists(LCARS_FONT_PATH):
+        print(f"Warning: LCARS_FONT_PATH '{LCARS_FONT_PATH}' not found. Trying default.", flush=True)
+        # This will re-raise IOError if default also fails, caught by outer except
+        TITLE_FONT   = ImageFont.truetype(DEFAULT_LCARS_FONT_PATH, 34)
+        BODY_FONT    = ImageFont.truetype(DEFAULT_LCARS_FONT_PATH, 28)
+
 except IOError:
-    print("LCARS font not found, falling back to DejaVuSans.", flush=True)
+    print(f"LCARS font not found at '{LCARS_FONT_PATH or DEFAULT_LCARS_FONT_PATH}'. Falling back to '{FALLBACK_FONT_PATH}'.", flush=True)
     try:
-        TITLE_FONT = ImageFont.truetype("DejaVuSans.ttf", 34)
+        TITLE_FONT = ImageFont.truetype(FALLBACK_FONT_PATH, 34)
         BODY_FONT = ImageFont.truetype("DejaVuSans.ttf", 28)
     except IOError:
         print("DejaVuSans.ttf not found, using default PIL font.", flush=True)
