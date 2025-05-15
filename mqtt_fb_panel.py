@@ -178,12 +178,12 @@ def on_mqtt(client, userdata, msg):
     """Handles incoming MQTT messages."""
     try:
         payload_str = msg.payload.decode(errors="ignore")
-        print(f"Received message on topic {msg.topic}: {payload_str}")
+        print(f"Received message on topic {msg.topic}: {payload_str}", flush=True)
         data = json.loads(payload_str)
 
         text_content = data.get("message")
         if not text_content:
-            print("Error: Received JSON message is missing mandatory 'message' field.")
+            print("Error: Received JSON message is missing mandatory 'message' field.", flush=True)
             return
 
         source = data.get("source", "Unknown")
@@ -199,15 +199,15 @@ def on_mqtt(client, userdata, msg):
             "topic": msg.topic # Store the original topic for potential future use
         }
         messages_store.append(new_message)
-        print(f"Stored new message: {new_message}")
-        # print(f"Current messages_store: {list(messages_store)}") # Uncomment for debugging
+        print(f"Stored new message: {new_message}", flush=True)
+        # print(f"Current messages_store: {list(messages_store)}", flush=True) # Uncomment for debugging
 
         # Rendering will be handled in Phase 2. For now, we just store.
         # The old render call is removed as it's incompatible with the new message structure.
         # render(current["title"], current["body"]) # OLD RENDER CALL
 
     except json.JSONDecodeError:
-        print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}")
+        print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}", flush=True)
         new_message = {
             "text": payload_str,
             "source": "Raw Text",
@@ -216,14 +216,14 @@ def on_mqtt(client, userdata, msg):
             "topic": msg.topic
         }
         messages_store.append(new_message)
-        print(f"Stored raw text message: {new_message}")
+        print(f"Stored raw text message: {new_message}", flush=True)
         # Future: Trigger render update here
     except Exception as e:
-        print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}")
+        print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}", flush=True)
 
 
 def main():
-    print("Welcome to LCARS MQTT Alert Panel")
+    print("Welcome to LCARS MQTT Alert Panel", flush=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true",
                         help="show sample content then quit")
@@ -251,37 +251,37 @@ def main():
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
 
     try:
-        print(f"Attempting to connect to MQTT broker: {os.getenv('MQTT_HOST', 'example-host.local')}:{os.getenv('MQTT_PORT', 1883)}")
+        print(f"Attempting to connect to MQTT broker: {os.getenv('MQTT_HOST', 'example-host.local')}:{os.getenv('MQTT_PORT', 1883)}", flush=True)
         client.connect(os.getenv("MQTT_HOST", "example-host.local"),
                        int(os.getenv("MQTT_PORT", 1883)))
     except Exception as e:
-        print(f"Fatal error: Could not connect to MQTT broker: {e}")
+        print(f"Fatal error: Could not connect to MQTT broker: {e}", flush=True)
         fb.close()
         sys.exit(1) # Exit with an error code
 
     subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
     client.subscribe(subscription_topic)
-    print(f"Subscribed to: {subscription_topic}")
+    print(f"Subscribed to: {subscription_topic}", flush=True)
 
     def bye(*_):
         blank() # Clear screen on exit
         fb.close(); sys.exit(0)
     signal.signal(signal.SIGINT, bye); signal.signal(signal.SIGTERM, bye)
 
-    print("client ready to loop")
+    print("client ready to loop", flush=True)
 
     try:
         client.loop_forever()
     except KeyboardInterrupt:
-        print("Exiting due to KeyboardInterrupt...")
+        print("Exiting due to KeyboardInterrupt...", flush=True)
     except Exception as e:
-        print(f"Critical error in MQTT loop: {e}")
+        print(f"Critical error in MQTT loop: {e}", flush=True)
     finally:
-        print("MQTT loop_forever has exited.")
+        print("MQTT loop_forever has exited.", flush=True)
         # client.disconnect() # Ensure client is disconnected if not already
         # bye() # Call the cleanup handler if loop_forever exits for any reason other than SIGINT/SIGTERM
 
-    print("Script main function finished.")
+    print("Script main function finished.", flush=True)
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
