@@ -78,12 +78,24 @@ def _calculate_message_area_layout(draw: ImageDraw.ImageDraw) -> dict:
 
     # Column definitions
     col_source_max_chars = 20
-    # Estimate source col width based on M chars, or use a fraction of screen.
-    source_char_w_tuple = text_size(draw, "M", lc.BODY_FONT)
-    source_char_w = source_char_w_tuple[0] if source_char_w_tuple[0] > 0 else lc.BODY_FONT.size * 0.6
-    layout['avg_char_width_message'] = source_char_w # Used for message wrapping
+    # Estimate source col width based on M chars (for source column sizing)
+    m_char_width_tuple = text_size(draw, "M", lc.BODY_FONT)
+    m_char_width = m_char_width_tuple[0] if m_char_width_tuple[0] > 0 else lc.BODY_FONT.size * 0.6 # Fallback for M width
 
-    layout['col_source_width'] = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
+    # For message wrapping, use a more representative average character width
+    sample_text_for_avg = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789"
+    avg_sample_width, _ = text_size(draw, sample_text_for_avg, lc.BODY_FONT)
+
+    if avg_sample_width > 0 and len(sample_text_for_avg) > 0:
+        layout['avg_char_width_message'] = avg_sample_width / len(sample_text_for_avg)
+    elif m_char_width > 0: # If 'M' width is available and sample calculation failed
+        # Estimate average as a fraction of 'M' width, smaller than 'M' itself
+        layout['avg_char_width_message'] = m_char_width * 0.7
+    else: # Absolute fallback if 'M' width is also zero or unavailable
+        layout['avg_char_width_message'] = max(1, lc.BODY_FONT.size * 0.5) # Ensure it's at least 1 pixel
+
+    # layout['col_source_width'] uses m_char_width for its estimation
+    layout['col_source_width'] = int(min(WIDTH * 0.25, col_source_max_chars * m_char_width + lc.PADDING))
 
     col_time_text_example = "00:00:00"
     layout['col_time_width'] = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING
