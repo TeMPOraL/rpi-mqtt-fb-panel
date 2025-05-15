@@ -25,14 +25,13 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     # The right edge of the text should be lc.PADDING to the left of the Right Terminator's starting X.
     text_x_coordinate = (screen_width - lc.PADDING - lc.BAR_HEIGHT) - lc.PADDING - event_log_text_w
     
-    # Calculate Y position for the baseline of "EVENT LOG" text, similar to draw_text_in_rect.
-    # This centers the ascent part of TITLE_FONT within lc.BAR_HEIGHT.
+    # Calculate Y position for the baseline of "EVENT LOG" text.
+    # For TITLE_FONT within a BAR_HEIGHT sized to it, the baseline is at the bottom of the bar.
     # lc.PADDING is the Y offset for the top bar itself.
-    # lc.BAR_HEIGHT is the height of the rectangle (bar) the text is in.
-    title_font_ascent, _ = lc.TITLE_FONT.getmetrics()
-    event_log_baseline_y = lc.PADDING + (lc.BAR_HEIGHT + title_font_ascent) // 2
+    event_log_baseline_y = lc.PADDING + lc.BAR_HEIGHT
     
     # Draw the "EVENT LOG" text directly on the background, using "ls" (left-baseline) anchor.
+    # text_x_coordinate is the calculated left edge for the text.
     draw.text((text_x_coordinate, event_log_baseline_y), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
 
     # Draw the Main Bar Segment.
@@ -62,12 +61,21 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     # "MQTT STREAM" Label Bar Segment
     mqtt_stream_text = "MQTT STREAM"
     mqtt_stream_text_w, _ = text_size(draw, mqtt_stream_text, lc.TITLE_FONT)
-    mqtt_stream_bar_w = mqtt_stream_text_w + 2 * lc.BUTTON_PADDING_X
+    mqtt_stream_bar_w = mqtt_stream_text_w + 2 * lc.BUTTON_PADDING_X # Bar width includes padding for text
     mqtt_stream_bar_x = lc.PADDING + left_terminator_width
 
-    draw_text_in_rect(draw, mqtt_stream_text, lc.TITLE_FONT,
-                      mqtt_stream_bar_x, BOTTOM_BAR_Y, mqtt_stream_bar_w, lc.BAR_HEIGHT,
-                      lc.TEXT_COLOR_TITLE, align="center")
+    # Draw "MQTT STREAM" text directly for precise baseline control.
+    # For TITLE_FONT within a BAR_HEIGHT sized to it, the baseline is at the bottom of the bar.
+    # Align: "center" means anchor "ms" (middle-baseline).
+    # X-coordinate for "ms" anchor is the horizontal center of the bar segment.
+    mqtt_stream_text_center_x = mqtt_stream_bar_x + mqtt_stream_bar_w // 2
+    mqtt_stream_baseline_y = BOTTOM_BAR_Y + lc.BAR_HEIGHT
+    
+    draw.text((mqtt_stream_text_center_x, mqtt_stream_baseline_y), 
+              mqtt_stream_text, 
+              font=lc.TITLE_FONT, 
+              fill=lc.TEXT_COLOR_TITLE, 
+              anchor="ms")
 
     current_x_bottom_bar = mqtt_stream_bar_x + mqtt_stream_bar_w + lc.PADDING
 
