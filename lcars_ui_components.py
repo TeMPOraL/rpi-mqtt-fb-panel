@@ -37,7 +37,6 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     mqtt_stream_bar_w = mqtt_stream_text_w + 2 * lc.BUTTON_PADDING_X
     mqtt_stream_bar_x = lc.PADDING + left_terminator_width
 
-    draw_lcars_shape(draw, mqtt_stream_bar_x, BOTTOM_BAR_Y, mqtt_stream_bar_w, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
     draw_text_in_rect(draw, mqtt_stream_text, lc.TITLE_FONT,
                       mqtt_stream_bar_x, BOTTOM_BAR_Y, mqtt_stream_bar_w, lc.BAR_HEIGHT,
                       lc.TEXT_COLOR_TITLE, align="center")
