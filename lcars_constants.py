@@ -17,12 +17,14 @@ LCARS_YELLOW = (255, 203, 95)       # Accent elements, some buttons (#FFCB5F)
 LCARS_RED_DARK = (212, 112, 101)    # Warning/Alert buttons or accents (#D47065)
 LCARS_BEIGE = (255, 204, 153)       # Often used for text or backgrounds in some schemes (#FFCC99)
 LCARS_PURPLE_LIGHT = (204, 153, 255) # Body text, info messages (#CC99FF)
+LCARS_CYAN = (102, 204, 255)        # Control messages or other special info (#66CCFF)
 
 # ---------------------------------------------------------------------------
 # Text Colors
 # ---------------------------------------------------------------------------
 TEXT_COLOR_TITLE = LCARS_ORANGE
 TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT
+TEXT_COLOR_CONTROL = LCARS_CYAN
 TEXT_COLOR_BUTTON_LABEL = (0, 0, 0) # Black
 TEXT_COLOR_HIGHLIGHT = (255, 255, 255) # White
 
@@ -35,6 +37,12 @@ COLOR_BUTTON_RELATIVE = LCARS_BLUE
 COLOR_BUTTON_CLOCK = LCARS_YELLOW
 
 PROBE_COLOUR = (255, 0, 255) # Magenta for probe
+
+# ---------------------------------------------------------------------------
+# Debug Colors
+# ---------------------------------------------------------------------------
+DEBUG_BOUNDING_BOX_UI_ELEMENT = (0, 255, 0) # Green
+DEBUG_BOUNDING_BOX_MESSAGE_COLUMN = (255, 0, 255) # Pink/Magenta
 
 # ---------------------------------------------------------------------------
 # Fonts

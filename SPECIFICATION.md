@@ -88,6 +88,22 @@
     *   A visually distinct button element within the LCARS UI (e.g., labeled "CLEAR ALERTS").
     *   Requires a touchscreen configured for input (e.g., via `evdev`).
     *   Tapping this button will remove all currently displayed sticky ("warning" and "error") messages. Normal "info" messages are unaffected. This button is currently a visual placeholder.
+*   **Control Channel & Debugging:**
+    *   **Control Topic:** The panel subscribes to a dedicated control topic prefix, configurable via `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`, where `<hostname>` is the device's hostname). MQTT topic names can contain hyphens.
+    *   **Control Message Display:**
+        *   Optionally, messages received on the control channel can be displayed in the main message list. This is controlled by the `LOG_CONTROL_MESSAGES` environment variable (defaults to true).
+        *   If displayed, the message `source` will be `LCARS/<suffix>`, where `<suffix>` is the part of the topic after the control prefix.
+        *   These messages will have an `importance` of `"control"` and be displayed with a distinct color (e.g., `LCARS_CYAN`).
+    *   **Supported Control Commands (payload is the message content):**
+        *   Topic Suffix: `debug-layout`
+            *   Payload `"enable"`: Turns on layout debugging.
+            *   Payload `"disable"` or empty string: Turns off layout debugging.
+        *   Topic Suffix: `log-control`
+            *   Payload `"enable"`: Control messages will be added to the main message list.
+            *   Payload `"disable"` or empty string: Control messages will not be added to the main message list.
+    *   **Layout Debugging Visuals:**
+        *   When enabled, all standard LCARS UI elements (bars, endcaps, buttons, text elements drawn by `draw_lcars_shape` and `draw_text_in_rect`) will have their bounding boxes rendered as a 1-pixel green outline.
+        *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline.
 *   **Relative Timestamp Button (`[RELATIVE]`):**
     *   A visually distinct button element in the bottom LCARS bar, labeled "RELATIVE".
     *   **Function (to be implemented):** Toggles the display format of timestamps in the message area.
@@ -108,6 +124,8 @@
 Environment variables will be the primary method of configuration, loaded from a file (e.g., `/home/pi/.config/mqtt_alert_panel.env`).
 *   `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASS`
 *   `MQTT_TOPIC_PREFIX`
+*   `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/alert-panel/` or `lcars/<hostname>/`)
+*   `LOG_CONTROL_MESSAGES` (boolean, e.g., `true` or `false`, defaults to `true`. Controls if messages from `MQTT_CONTROL_TOPIC_PREFIX` are displayed in the event log)
 *   `LCARS_TITLE_TEXT` (General panel title, specific bar labels like "EVENT LOG" are currently hardcoded)
 *   `LCARS_FONT_PATH` (If implemented for dynamic font loading)
 *   `DISPLAY_ROTATE` (Controls screen rotation: 0, 90, 180, 270)

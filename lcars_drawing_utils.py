@@ -16,11 +16,15 @@ def text_size(draw: ImageDraw.ImageDraw, txt: str, font: ImageFont.ImageFont):
 # ---------------------------------------------------------------------------
 # LCARS Drawing Helpers
 # ---------------------------------------------------------------------------
+import lcars_constants as lc # For debug colors
+
 def draw_lcars_shape(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, radius: int,
-                     color_bg, left_round: bool = False, right_round: bool = False):
+                     color_bg, left_round: bool = False, right_round: bool = False,
+                     debug_draw_bbox: bool = False):
     """
     Draws an LCARS-style shape (rectangle with optional rounded ends).
     Radius is typically h // 2 for semi-circular ends.
+    If debug_draw_bbox is True, draws a 1px green bounding box.
     """
     if radius < 0: radius = 0 # Ensure radius is not negative
 
@@ -69,10 +73,17 @@ def draw_lcars_shape(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, 
         if w > 0 and h > 0:
             draw.rectangle((x, y, x + w, y + h), fill=color_bg)
 
+    if debug_draw_bbox and w > 0 and h > 0:
+        draw.rectangle((x, y, x + w -1 , y + h - 1), outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
+
 def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont,
                       rect_x: int, rect_y: int, rect_w: int, rect_h: int,
-                      text_color, align: str = "center", padding_x: int = 0): # Default padding_x to 0
-    """Draws text within a given rectangle, with alignment."""
+                      text_color, align: str = "center", padding_x: int = 0, # Default padding_x to 0
+                      debug_draw_bbox: bool = False):
+    """
+    Draws text within a given rectangle, with alignment.
+    If debug_draw_bbox is True, draws a 1px green bounding box around the rect.
+    """
     if not text or rect_w <= 0 or rect_h <= 0:
         return # Nothing to draw or no space
 
@@ -126,5 +137,8 @@ def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.Imag
         x_coord_for_anchor = rect_x + rect_w // 2
     
     final_anchor = f"{anchor_char_h}s"  # e.g., "ls", "ms", "rs" (s for baseline)
-    
+
     draw.text((x_coord_for_anchor, y_coord_for_baseline_anchor), text, font=font, fill=text_color, anchor=final_anchor)
+
+    if debug_draw_bbox:
+        draw.rectangle((rect_x, rect_y, rect_x + rect_w -1, rect_y + rect_h -1), outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)

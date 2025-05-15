@@ -21,7 +21,7 @@ To move the console off the TFT (if it still appears):
 ————————————————————————————————————————————————————————
 """
 from __future__ import annotations
-import os, sys, signal, textwrap, argparse, json
+import os, sys, signal, textwrap, argparse, json, socket
 from collections import deque
 from datetime import datetime
 from dataclasses import dataclass
@@ -40,10 +40,19 @@ from lcars_ui_components import render_top_bar, render_bottom_bar
 # ---------------------------------------------------------------------------
 # Global Application Settings (from environment or defaults)
 # ---------------------------------------------------------------------------
+HOSTNAME = socket.gethostname()
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
+MQTT_CONTROL_TOPIC_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", f"lcars/{HOSTNAME}/").replace("<hostname>", HOSTNAME)
+LOG_CONTROL_MESSAGES_STR = os.getenv("LOG_CONTROL_MESSAGES", "true").lower()
+LOG_CONTROL_MESSAGES = LOG_CONTROL_MESSAGES_STR == "true"
+
 LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL") # Currently not used directly in UI
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
+
+# Global application state
+debug_layout_enabled = False
+log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 
 # ---------------------------------------------------------------------------
 # Message Dataclass
@@ -132,11 +141,33 @@ def render_messages():
     draw = ImageDraw.Draw(img)
 
     # 1. Draw LCARS UI Chrome (Top and Bottom Bars)
-    render_top_bar(draw, WIDTH)
-    render_bottom_bar(draw, WIDTH, HEIGHT)
+    render_top_bar(draw, WIDTH, debug_layout_enabled)
+    render_bottom_bar(draw, WIDTH, HEIGHT, debug_layout_enabled)
 
     # 2. Calculate Message Area Layout
     layout = _calculate_message_area_layout(draw)
+
+    # Draw debug bounding boxes for message columns if enabled
+    if debug_layout_enabled:
+        # Source column
+        draw.rectangle(
+            (layout['col_source_x'], layout['message_area_y_start'],
+             layout['col_source_x'] + layout['col_source_width'] -1, layout['message_area_y_end'] -1),
+            outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1
+        )
+        # Message column
+        draw.rectangle(
+            (layout['col_message_x'], layout['message_area_y_start'],
+             layout['col_message_x'] + layout['col_message_width'] -1, layout['message_area_y_end'] -1),
+            outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1
+        )
+        # Time column
+        time_col_x_start = WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - layout['col_time_width']
+        draw.rectangle(
+            (time_col_x_start, layout['message_area_y_start'],
+             WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING -1, layout['message_area_y_end'] -1),
+            outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1
+        )
 
     # 3. Prepare Messages for Display
     # Create a copy for processing, as messages_store might be updated by MQTT thread
@@ -156,17 +187,30 @@ def render_messages():
         # Ensure text fits vertically before drawing
         if current_render_y + lc.BODY_FONT.size > layout['message_area_y_end']:
             break
+        
+        # Determine text color based on importance (though processed_message_lines doesn't store original importance)
+        # For now, all messages rendered here use TEXT_COLOR_BODY or TEXT_COLOR_CONTROL if we adapt it.
+        # This part needs the original message object or its importance to correctly color control messages.
+        # Let's assume for now that _process_messages_for_display will pass through an 'importance' field.
+        # This is a simplification; ideally, the original message object or its importance is available.
+        # For now, we'll just use a placeholder. The `on_mqtt` part handles setting 'control' importance.
+        # When rendering, we need to access that.
+        # A quick fix: check source prefix for "LCARS/"
+        text_fill_color = lc.TEXT_COLOR_BODY
+        if line_data["source"].startswith("LCARS/"): # Crude check for control message
+            text_fill_color = lc.TEXT_COLOR_CONTROL
+
 
         if line_data["source"]:
-            draw.text((layout['col_source_x'], current_render_y), line_data["source"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+            draw.text((layout['col_source_x'], current_render_y), line_data["source"], font=lc.BODY_FONT, fill=text_fill_color)
 
-        draw.text((layout['col_message_x'], current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+        draw.text((layout['col_message_x'], current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=text_fill_color)
 
         if line_data["time"]:
             time_w, _ = text_size(draw, line_data["time"], lc.BODY_FONT)
             # Align to far right edge of message area (screen minus MESSAGE_AREA_HORIZONTAL_PADDING)
-            actual_time_x = WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - time_w 
-            draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+            actual_time_x = WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - time_w
+            draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=text_fill_color)
 
         current_render_y += layout['message_line_height']
 
@@ -205,25 +249,84 @@ def probe(shape: str = "square", fill: bool = False):
 messages_store = deque(maxlen=MAX_MESSAGES_IN_STORE)
 
 def on_mqtt(client, userdata, msg):
-    """Handles incoming MQTT messages."""
+    """Handles incoming MQTT messages, including control messages."""
+    global debug_layout_enabled, log_control_messages_enabled
     try:
-        payload_str = msg.payload.decode(errors="ignore")
-        print(f"Received message on topic {msg.topic}: {payload_str}", flush=True)
-        data = json.loads(payload_str)
+        payload_str = msg.payload.decode(errors="ignore").strip()
+        print(f"Received message on topic {msg.topic}: '{payload_str}'", flush=True)
 
-        text_content = data.get("message")
-        if not text_content:
-            print("Error: Received JSON message is missing mandatory 'message' field.", flush=True)
-            return
+        # Check if it's a control message
+        if msg.topic.startswith(MQTT_CONTROL_TOPIC_PREFIX):
+            command_suffix = msg.topic[len(MQTT_CONTROL_TOPIC_PREFIX):]
+            print(f"Control command: {command_suffix}, payload: '{payload_str}'", flush=True)
 
-        source = data.get("source", "Unknown")
-        importance = data.get("importance", "info")
-        timestamp_str = data.get("timestamp")
+            needs_render = False
+            if command_suffix == "debug-layout":
+                if payload_str == "enable":
+                    debug_layout_enabled = True
+                    print("Layout debugging ENABLED", flush=True)
+                elif payload_str == "disable" or payload_str == "":
+                    debug_layout_enabled = False
+                    print("Layout debugging DISABLED", flush=True)
+                else:
+                    print(f"Unknown payload for debug-layout: '{payload_str}'", flush=True)
+                needs_render = True
+            elif command_suffix == "log-control":
+                if payload_str == "enable":
+                    log_control_messages_enabled = True
+                    print("Logging of control messages ENABLED", flush=True)
+                elif payload_str == "disable" or payload_str == "":
+                    log_control_messages_enabled = False
+                    print("Logging of control messages DISABLED", flush=True)
+                else:
+                    print(f"Unknown payload for log-control: '{payload_str}'", flush=True)
+                # No immediate render needed, only affects future messages
+            else:
+                print(f"Unknown control command suffix: {command_suffix}", flush=True)
+
+            if log_control_messages_enabled:
+                # Log the control command itself as a message if enabled
+                control_msg_text = f"CMD: {command_suffix}"
+                if payload_str: # Add payload to message if it exists
+                    control_msg_text += f" PAYLOAD: {payload_str}"
+
+                control_message_obj = Message(
+                    text=control_msg_text,
+                    source=f"LCARS/{command_suffix}",
+                    importance="control", # Special importance for control messages
+                    timestamp=datetime.now(),
+                    topic=msg.topic
+                )
+                messages_store.append(control_message_obj)
+                print(f"Stored control message: {control_message_obj}", flush=True)
+                needs_render = True # Render if we logged it
+
+            if needs_render:
+                render_messages()
+            return # Processed as control message
+
+        # Regular message processing (JSON or raw)
+        try:
+            data = json.loads(payload_str)
+            text_content = data.get("message")
+            if not text_content:
+                print("Error: Received JSON message is missing mandatory 'message' field.", flush=True)
+                return
+
+            source = data.get("source", "Unknown")
+            importance = data.get("importance", "info")
+            timestamp_str = data.get("timestamp")
+        except json.JSONDecodeError:
+            # If not JSON, treat the whole payload_str as the message text
+            print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text.", flush=True)
+            text_content = payload_str
+            source = "Raw Text"
+            importance = "info"
+            timestamp_str = None # No timestamp if raw
 
         timestamp_dt: datetime
         if timestamp_str:
             try:
-                # Handle 'Z' for UTC timezone explicitly for fromisoformat
                 if timestamp_str.endswith('Z'):
                     timestamp_dt = datetime.fromisoformat(timestamp_str[:-1] + '+00:00')
                 else:
@@ -232,7 +335,7 @@ def on_mqtt(client, userdata, msg):
                 print(f"Warning: Could not parse provided timestamp '{timestamp_str}'. Using current time.", flush=True)
                 timestamp_dt = datetime.now()
         else:
-            timestamp_dt = datetime.now() # Default to current time if no timestamp provided
+            timestamp_dt = datetime.now()
 
         new_msg_obj = Message(
             text=text_content,
@@ -245,18 +348,6 @@ def on_mqtt(client, userdata, msg):
         print(f"Stored new message: {new_msg_obj}", flush=True)
         render_messages()
 
-    except json.JSONDecodeError:
-        print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}", flush=True)
-        raw_msg_obj = Message(
-            text=payload_str,
-            source="Raw Text",
-            importance="info",
-            timestamp=datetime.now(),
-            topic=msg.topic
-        )
-        messages_store.append(raw_msg_obj)
-        print(f"Stored raw text message: {raw_msg_obj}", flush=True)
-        render_messages()
     except Exception as e:
         print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}", flush=True)
 
@@ -313,7 +404,13 @@ def main():
 
     subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
     client.subscribe(subscription_topic)
-    print(f"Subscribed to: {subscription_topic}", flush=True)
+    print(f"Subscribed to data topic: {subscription_topic}", flush=True)
+
+    # Subscribe to control topic
+    control_subscription_topic = f"{MQTT_CONTROL_TOPIC_PREFIX.rstrip('/')}/#"
+    client.subscribe(control_subscription_topic)
+    print(f"Subscribed to control topic: {control_subscription_topic}", flush=True)
+
 
     def bye(*_):
         blank() # Clear screen on exit

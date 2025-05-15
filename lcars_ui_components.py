@@ -2,15 +2,15 @@ from PIL import ImageDraw, ImageFont
 import lcars_constants as lc
 from lcars_drawing_utils import draw_lcars_shape, draw_text_in_rect, text_size
 
-def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
+def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, debug_layout_enabled: bool = False):
     """Renders the top LCARS bar with 'EVENT LOG' title."""
     # Left Terminator (])
     left_terminator_width = lc.BAR_HEIGHT # Width of the terminator element
-    draw_lcars_shape(draw, lc.PADDING, lc.PADDING, left_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, left_round=True)
+    draw_lcars_shape(draw, lc.PADDING, lc.PADDING, left_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, left_round=True, debug_draw_bbox=debug_layout_enabled)
 
     # Right Terminator [)
     right_terminator_width = lc.BAR_HEIGHT # Width of the terminator element
-    draw_lcars_shape(draw, screen_width - lc.PADDING - right_terminator_width, lc.PADDING, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True)
+    draw_lcars_shape(draw, screen_width - lc.PADDING - right_terminator_width, lc.PADDING, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True, debug_draw_bbox=debug_layout_enabled)
 
     # "EVENT LOG" Text and associated Bar Segment
     # The Left and Right Terminators are drawn by the code immediately preceding this block.
@@ -32,7 +32,16 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     
     # Draw the "EVENT LOG" text directly on the background, using "ls" (left-baseline) anchor.
     # text_x_coordinate is the calculated left edge for the text.
+    # For debug drawing, we'll wrap this in draw_text_in_rect if we want its bounding box.
+    # However, direct draw.text doesn't have a bbox option. For now, only elements using draw_lcars_shape or draw_text_in_rect get bboxes.
+    # If precise bbox for this text is needed, it would require refactoring to use draw_text_in_rect or similar.
     draw.text((text_x_coordinate, event_log_baseline_y), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
+    if debug_layout_enabled: # Manual bbox for this specific text element
+        event_log_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
+        draw.rectangle((text_x_coordinate, event_log_baseline_y - event_log_text_h, 
+                        text_x_coordinate + event_log_text_w, event_log_baseline_y), 
+                       outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
+
 
     # Draw the Main Bar Segment.
     # It starts lc.PADDING after the Left Terminator and ends lc.PADDING before the "EVENT LOG" text.
@@ -47,15 +56,15 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     if bar_segment_width > 0:
         # Draw the bar segment (no rounding for this piece, it's a simple rectangle).
         # It uses lc.PADDING as its Y coordinate and lc.BAR_HEIGHT as its height.
-        draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
+        draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS, debug_draw_bbox=debug_layout_enabled)
 
-def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int):
+def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int, debug_layout_enabled: bool = False):
     """Renders the bottom LCARS bar with 'MQTT STREAM' label and buttons."""
     BOTTOM_BAR_Y = screen_height - lc.PADDING - lc.BAR_HEIGHT
     left_terminator_width = lc.BAR_HEIGHT # Same as top bar
 
     # Left Terminator (]) for bottom bar
-    draw_lcars_shape(draw, lc.PADDING, BOTTOM_BAR_Y, left_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, left_round=True)
+    draw_lcars_shape(draw, lc.PADDING, BOTTOM_BAR_Y, left_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, left_round=True, debug_draw_bbox=debug_layout_enabled)
 
     # current_x tracks the starting X for the next element, including lc.PADDING from the previous one.
     current_x = lc.PADDING + left_terminator_width + lc.PADDING
@@ -71,10 +80,17 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     
     draw.text((mqtt_stream_text_center_x, mqtt_stream_baseline_y), 
               mqtt_stream_text, 
-              font=lc.TITLE_FONT, 
-              fill=lc.TEXT_COLOR_TITLE, 
+              font=lc.TITLE_FONT,
+              fill=lc.TEXT_COLOR_TITLE,
               anchor="ms")
-    
+    if debug_layout_enabled: # Manual bbox for this specific text element
+        mqtt_stream_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
+        # For "ms" anchor, text_center_x is the horizontal center.
+        # Baseline y is BOTTOM_BAR_Y + lc.BAR_HEIGHT. Top of text is roughly baseline_y - h.
+        draw.rectangle((mqtt_stream_text_center_x - mqtt_stream_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT - mqtt_stream_text_h,
+                        mqtt_stream_text_center_x + mqtt_stream_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT),
+                       outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
+
     current_x += mqtt_stream_text_w + lc.PADDING # Advance current_x past the text and its trailing padding
 
     # --- Elements from Right to Left for Sizing ---
@@ -112,7 +128,7 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     fill_bar_width = fill_bar_end_x - fill_bar_start_x
 
     if fill_bar_width > 0:
-        draw_lcars_shape(draw, fill_bar_start_x, BOTTOM_BAR_Y, fill_bar_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
+        draw_lcars_shape(draw, fill_bar_start_x, BOTTOM_BAR_Y, fill_bar_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS, debug_draw_bbox=debug_layout_enabled)
 
     # --- Draw Buttons ---
     # Only draw buttons if the calculated start position for the group is sensible
@@ -122,10 +138,11 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
         for i, detail in enumerate(button_details):
             # This check ensures we don't try to draw buttons if the group itself wouldn't fit.
             # Individual button fitting within the group space is implicitly handled by prior width calculation.
-            draw_lcars_shape(draw, actual_button_draw_x, BOTTOM_BAR_Y, detail['width'], lc.BAR_HEIGHT, 0, detail['color'])
+            draw_lcars_shape(draw, actual_button_draw_x, BOTTOM_BAR_Y, detail['width'], lc.BAR_HEIGHT, 0, detail['color'], debug_draw_bbox=debug_layout_enabled)
             draw_text_in_rect(draw, detail['text'], lc.BODY_FONT,
                               actual_button_draw_x, BOTTOM_BAR_Y, detail['width'], lc.BAR_HEIGHT,
-                              lc.TEXT_COLOR_BUTTON_LABEL, align="right", padding_x=lc.BUTTON_PADDING_X)
+                              lc.TEXT_COLOR_BUTTON_LABEL, align="right", padding_x=lc.BUTTON_PADDING_X,
+                              debug_draw_bbox=debug_layout_enabled) # Pass debug flag
             actual_button_draw_x += detail['width']
             if i < len(button_details) - 1:
                 actual_button_draw_x += lc.PADDING
@@ -141,4 +158,4 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     final_right_terminator_x = screen_width - lc.PADDING - right_terminator_width
     # Check if it fits at all (e.g. screen isn't too narrow for PADDING + width + PADDING)
     if final_right_terminator_x >= lc.PADDING :
-        draw_lcars_shape(draw, final_right_terminator_x, BOTTOM_BAR_Y, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True)
+        draw_lcars_shape(draw, final_right_terminator_x, BOTTOM_BAR_Y, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True, debug_draw_bbox=debug_layout_enabled)
