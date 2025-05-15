@@ -69,7 +69,13 @@ BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
 # Using .size attribute which is the requested point size.
 # A more accurate height might be font.getbbox("A")[3] - font.getbbox("A")[1] or font.getmetrics()
 # For simplicity, TITLE_FONT.size is used as an approximation of text height.
-title_font_height = TITLE_FONT.size # Or use a more accurate measure if available and needed
-# Reduce bar height by ~30% while keeping font size same
-BAR_HEIGHT = int((title_font_height + PADDING * 2) * 0.7) # Height of top and bottom bars
+title_font_nominal_height = TITLE_FONT.size # Using nominal size as proxy for actual text height for bar calculation
+# User wants bar height reduced by ~30% from a conceptual height that included padding.
+conceptual_padded_height = title_font_nominal_height + PADDING * 2
+reduced_bar_height_target = int(conceptual_padded_height * 0.7)
+
+# Ensure bar is at least tall enough for the title font.
+# This prevents text from being shifted outside the bar if the reduction is too aggressive
+# and ensures the text "takes more vertical space" if the bar becomes very snug.
+BAR_HEIGHT = max(reduced_bar_height_target, title_font_nominal_height)
 CORNER_RADIUS = BAR_HEIGHT // 2
