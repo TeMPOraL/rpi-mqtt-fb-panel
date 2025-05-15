@@ -213,6 +213,7 @@ def on_mqtt(client, userdata, msg):
 
 
 def main():
+    print("Welcome to LCARS MQTT Alert Panel")
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true",
                         help="show sample content then quit")
@@ -233,7 +234,7 @@ def main():
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
     client.connect(os.getenv("MQTT_HOST", "example-host.local"),
                    int(os.getenv("MQTT_PORT", 1883)))
-    
+
     subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
     client.subscribe(subscription_topic)
     print(f"Subscribed to: {subscription_topic}")
