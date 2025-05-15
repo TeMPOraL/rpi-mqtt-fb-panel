@@ -73,16 +73,34 @@ def render_messages():
     col_source_width = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
 
     col_time_text_example = "00:00:00"
-    col_time_width = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING
+    col_time_width = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING # Includes its own right padding
 
-    col_source_x = lc.PADDING
+    # Add extra lc.PADDING for left and right margins of the message list area
+    message_area_horizontal_margin = lc.PADDING * 2
+
+    col_source_x = message_area_horizontal_margin
     # Time column is right-aligned, so its x is not fixed but calculated per line for alignment
 
-    col_message_x = col_source_x + col_source_width + lc.PADDING
-    # Message width needs to account for the time column on the right
-    # The space for time column is col_time_width.
-    # So, message area ends at WIDTH - lc.PADDING - col_time_width - lc.PADDING (for msg padding)
-    col_message_width = (WIDTH - lc.PADDING - col_time_width - lc.PADDING) - col_message_x
+    col_message_x = col_source_x + col_source_width + lc.PADDING # lc.PADDING here is between source and message
+    
+    # Calculate message width:
+    # Available space for message text is from col_message_x to
+    # (WIDTH - message_area_horizontal_margin - col_time_width - lc.PADDING for msg/time padding)
+    # Note: col_time_width already includes its own padding for the time text from the right edge.
+    # The message area's right boundary for text is WIDTH - message_area_horizontal_margin.
+    # The time column will take col_time_width from this right boundary.
+    # The message text needs to end lc.PADDING before the time column conceptually starts.
+    
+    # Effective right boundary for message content before time column and its padding
+    message_content_right_boundary = WIDTH - message_area_horizontal_margin - col_time_width 
+                                     # (col_time_width includes padding for time text from edge)
+                                     # No, col_time_width is just text_size + lc.PADDING.
+                                     # The actual_time_x calculation handles alignment.
+
+    # Let's recalculate col_message_width based on new margins:
+    # Rightmost point for message text = (WIDTH - message_area_horizontal_margin) - col_time_width - lc.PADDING (padding between msg and time)
+    # Start point for message text = col_message_x
+    col_message_width = (WIDTH - message_area_horizontal_margin - col_time_width - lc.PADDING) - col_message_x
 
 
     # 3. Prepare and Render Messages
@@ -147,7 +165,8 @@ def render_messages():
 
         if line_data["time"]: # Draw time only if it's the first line of a message
             time_w, _ = text_size(draw, line_data["time"], lc.BODY_FONT)
-            actual_time_x = WIDTH - lc.PADDING - time_w # Align to far right edge of screen minus PADDING
+            # Align to far right edge of message area (screen minus new horizontal margin)
+            actual_time_x = WIDTH - message_area_horizontal_margin - time_w 
             draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
 
         current_render_y += message_line_height
