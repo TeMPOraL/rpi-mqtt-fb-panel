@@ -182,7 +182,8 @@ def render_messages():
                 # Here, we ensure the line starts aligned with the message text, not the timestamp.
                 # This part might need refinement based on how textwrap.wrap + subsequent_indent behaves.
                 # A simpler approach: add prefix only to the first line.
-                all_render_lines.append(" " * text_size(draw, prefix, BODY_FONT)[0] // avg_char_width_M + wrapped_line_part) # Approximate spacing
+                num_indent_spaces = int(text_size(draw, prefix, BODY_FONT)[0] // avg_char_width_M)
+                all_render_lines.append(" " * num_indent_spaces + wrapped_line_part) # Approximate spacing
         elif message_text: # Non-empty message but wrap returned empty (e.g. only spaces)
              all_render_lines.append(prefix + message_text)
         else: # Empty message
