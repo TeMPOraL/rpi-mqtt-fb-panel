@@ -82,9 +82,9 @@ PROBE_COLOUR = (255, 0, 255)
 # Not distributing it with this project. Alternatives include Antionio. Or just
 # web-search for something if you don't have this one.
 TITLE_FONT   = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 28)
+    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 34)
 BODY_FONT    = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 22)
+    "/usr/share/fonts/truetype/dejavu/Swiss-911-Ultra-Compressed-BT-Regular.ttf", 28)
 
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
 LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL")
