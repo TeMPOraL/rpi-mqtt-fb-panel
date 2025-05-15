@@ -35,10 +35,9 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int):
     draw.text((text_x_coordinate, event_log_baseline_y), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
 
     # Draw the Main Bar Segment.
-    # It starts after the Left Terminator and ends before the "EVENT LOG" text.
-    # The Left Terminator ends at: lc.PADDING + left_terminator_width
-    # Note: left_terminator_width is defined above and is equal to lc.BAR_HEIGHT.
-    bar_segment_start_x = lc.PADDING + lc.BAR_HEIGHT
+    # It starts lc.PADDING after the Left Terminator and ends lc.PADDING before the "EVENT LOG" text.
+    # Left Terminator: x=lc.PADDING, width=lc.BAR_HEIGHT. So it ends at lc.PADDING + lc.BAR_HEIGHT.
+    bar_segment_start_x = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING # Add lc.PADDING gap
     
     # The bar segment should end lc.PADDING to the left of where the "EVENT LOG" text starts.
     bar_segment_end_x = text_x_coordinate - lc.PADDING
@@ -61,10 +60,16 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     # "MQTT STREAM" Label Bar Segment
     mqtt_stream_text = "MQTT STREAM"
     mqtt_stream_text_w, _ = text_size(draw, mqtt_stream_text, lc.TITLE_FONT)
-    mqtt_stream_bar_w = mqtt_stream_text_w + 2 * lc.BUTTON_PADDING_X # Bar width includes padding for text
-    mqtt_stream_bar_x = lc.PADDING + left_terminator_width
+    # This bar segment contains the text and has its own internal padding (BUTTON_PADDING_X).
+    mqtt_stream_bar_w = mqtt_stream_text_w + (2 * lc.BUTTON_PADDING_X)
+    # The bar segment itself starts lc.PADDING after the left terminator.
+    # Left Terminator: x=lc.PADDING, width=lc.BAR_HEIGHT. Ends at lc.PADDING + lc.BAR_HEIGHT.
+    mqtt_stream_bar_x = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING # Add lc.PADDING gap
 
-    # Draw "MQTT STREAM" text directly for precise baseline control.
+    # Draw the bar segment for "MQTT STREAM" (square ends)
+    draw_lcars_shape(draw, mqtt_stream_bar_x, BOTTOM_BAR_Y, mqtt_stream_bar_w, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
+
+    # Draw "MQTT STREAM" text directly within its bar for precise baseline control.
     # For TITLE_FONT within a BAR_HEIGHT sized to it, the baseline is at the bottom of the bar.
     # Align: "center" means anchor "ms" (middle-baseline).
     # X-coordinate for "ms" anchor is the horizontal center of the bar segment.
@@ -92,21 +97,30 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
             draw_lcars_shape(draw, current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, lc.BAR_HEIGHT, 0, button_colors[i]) # Square buttons
             draw_text_in_rect(draw, btn_text, lc.BODY_FONT,
                               current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, lc.BAR_HEIGHT,
-                              lc.TEXT_COLOR_BUTTON_LABEL, align="right")
+                              lc.TEXT_COLOR_BUTTON_LABEL, align="right", padding_x=lc.BUTTON_PADDING_X)
             current_x_bottom_bar += button_total_width + lc.PADDING
         else:
             # Not enough space for this button, break or log
             break
 
-    # Right Fill Bar [==)
-    right_fill_bar_x = current_x_bottom_bar
-    # The rightmost point for the fill bar is before the screen padding
-    # It should not overlap with a potential right terminator if we had one here,
-    # but the mockup is (] ... buttons ... [==)
-    # So, it fills up to screen_width - PADDING
-    right_fill_bar_w = screen_width - lc.PADDING - right_fill_bar_x
+    # Right side: Optional rectangular bar segment, then a distinct Right Terminator [)
+    fill_bar_start_x = current_x_bottom_bar # This X already includes lc.PADDING from the last button
 
-    if right_fill_bar_w > lc.CORNER_RADIUS : # Ensure there's enough space for the rounded end
-        draw_lcars_shape(draw, right_fill_bar_x, BOTTOM_BAR_Y, right_fill_bar_w, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True)
-    elif right_fill_bar_w > 0: # If not enough for rounding, draw square if space permits
-        draw_lcars_shape(draw, right_fill_bar_x, BOTTOM_BAR_Y, right_fill_bar_w, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
+    # Calculate position and width for the Right Terminator
+    right_terminator_width = lc.BAR_HEIGHT # Standard width for terminators
+    right_terminator_x = screen_width - lc.PADDING - right_terminator_width
+
+    # Calculate width for the fill bar segment that sits before the right terminator
+    # It ends lc.PADDING before the right_terminator_x
+    fill_bar_end_x = right_terminator_x - lc.PADDING
+    fill_bar_width = fill_bar_end_x - fill_bar_start_x
+
+    # Draw the rectangular fill bar segment if there's space
+    if fill_bar_width > 0:
+        draw_lcars_shape(draw, fill_bar_start_x, BOTTOM_BAR_Y, fill_bar_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS)
+    
+    # Draw the Right Terminator [)
+    # Ensure there's actually space for the terminator itself before drawing
+    if right_terminator_x >= fill_bar_start_x or fill_bar_width <=0 : # if fill bar was not drawn or terminator is to its right
+         if screen_width - lc.PADDING - right_terminator_width >= lc.PADDING : # Check if it fits on screen at all
+            draw_lcars_shape(draw, right_terminator_x, BOTTOM_BAR_Y, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True)
