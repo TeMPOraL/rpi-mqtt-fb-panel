@@ -30,20 +30,20 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Ensure the display updates dynamically as new messages arrive.
 
 ## Phase 3: LCARS Visuals
-*   [x] **LCARS Font:** (User reported completing initial font setup)
+*   [ ] **LCARS Font:** (User reported completing initial font setup)
     *   [ ] Consider adding `LCARS_FONT_PATH` environment variable for easier font switching if current hardcoded path is not final.
     *   [x] User has provided and configured an LCARS-style `.ttf` font.
     *   [x] Font loading updated by user.
-    *   [ ] Font sizes may need further adjustment as UI evolves.
-*   [ ] **Basic LCARS Graphics (In Progress):**
+    *   [x] Font sizes may need further adjustment as UI evolves.
+*   [x] **Basic LCARS Graphics (In Progress):**
     *   [x] Define extended LCARS color palette (new constants added).
     *   [x] Implement helper function for drawing LCARS shapes (rectangles with optional rounded ends).
-    *   [ ] Redesign `render` function for new LCARS layout:
-        *   [ ] Draw top bar with "EVENT LOG" label and rounded terminators `(]` and `[)`.
-        *   [ ] Draw bottom bar with "MQTT STREAM" label, placeholder buttons `[CLEAR]`, `[RELATIVE]`, `[CLOCK]`, and terminators `(]` and `[==)`.
-        *   [ ] Implement 3-column message display (Source, Message, Timestamp) in the central area.
-    *   [ ] Constrain message rendering to the designated message area.
-    *   [ ] Refine visual alignment and spacing of all elements.
+    *   [x] Redesign `render` function for new LCARS layout:
+        *   [x] Draw top bar with "EVENT LOG" label and rounded terminators `(]` and `[)`.
+        *   [x] Draw bottom bar with "MQTT STREAM" label, placeholder buttons `[CLEAR]`, `[RELATIVE]`, `[CLOCK]`, and terminators `(]` and `[==)`.
+        *   [x] Implement 3-column message display (Source, Message, Timestamp) in the central area.
+    *   [x] Constrain message rendering to the designated message area.
+    *   [x] Refine visual alignment and spacing of all elements.
 
 ## Phase 4: Sticky Messages
 *   [ ] **Message Importance Handling:**
