@@ -207,9 +207,19 @@ def on_mqtt(client, userdata, msg):
         # render(current["title"], current["body"]) # OLD RENDER CALL
 
     except json.JSONDecodeError:
-        print(f"Error: Could not decode JSON from topic {msg.topic}: {payload_str}")
+        print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}")
+        new_message = {
+            "text": payload_str,
+            "source": "Raw Text",
+            "importance": "info", # Or a new category like "raw_text"
+            "timestamp": datetime.now().isoformat(),
+            "topic": msg.topic
+        }
+        messages_store.append(new_message)
+        print(f"Stored raw text message: {new_message}")
+        # Future: Trigger render update here
     except Exception as e:
-        print(f"An unexpected error occurred in on_mqtt: {e}")
+        print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}")
 
 
 def main():
@@ -229,11 +239,23 @@ def main():
         render("MQTT Panel", "This is only a\nDEBUG splash.")
         fb.close(); sys.exit(0)
 
-    client = mqtt.Client(protocol=mqtt.MQTTv5)
+    # For paho-mqtt v1.x, client_id="" and clean_session=True is standard for a non-persistent session.
+    # For MQTTv5, clean_session=True generally implies clean_start=True.
+    client = mqtt.Client(client_id="", clean_session=True, protocol=mqtt.MQTTv5)
+    # If using paho-mqtt v2.x, the following would be more explicit:
+    # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="", protocol=mqtt.MQTTv5, clean_start=True)
+    
     client.on_message = on_mqtt
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
-    client.connect(os.getenv("MQTT_HOST", "example-host.local"),
-                   int(os.getenv("MQTT_PORT", 1883)))
+
+    try:
+        print(f"Attempting to connect to MQTT broker: {os.getenv('MQTT_HOST', 'example-host.local')}:{os.getenv('MQTT_PORT', 1883)}")
+        client.connect(os.getenv("MQTT_HOST", "example-host.local"),
+                       int(os.getenv("MQTT_PORT", 1883)))
+    except Exception as e:
+        print(f"Fatal error: Could not connect to MQTT broker: {e}")
+        fb.close()
+        sys.exit(1) # Exit with an error code
 
     subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
     client.subscribe(subscription_topic)
@@ -246,9 +268,18 @@ def main():
 
     print("client ready to loop")
 
-    client.loop_forever()
+    try:
+        client.loop_forever()
+    except KeyboardInterrupt:
+        print("Exiting due to KeyboardInterrupt...")
+    except Exception as e:
+        print(f"Critical error in MQTT loop: {e}")
+    finally:
+        print("MQTT loop_forever has exited.")
+        # client.disconnect() # Ensure client is disconnected if not already
+        # bye() # Call the cleanup handler if loop_forever exits for any reason other than SIGINT/SIGTERM
 
-    print("client done")
+    print("Script main function finished.")
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
