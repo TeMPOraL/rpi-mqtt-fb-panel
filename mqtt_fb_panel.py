@@ -179,7 +179,7 @@ def render_messages():
 
 def probe(shape: str = "square", fill: bool = False):
     """Draw a 75 % square/ellipse centred on screen to test geometry."""
-    img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOUR)
+    img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
     draw = ImageDraw.Draw(img)
 
     size = int(min(WIDTH, HEIGHT) * 0.75)
