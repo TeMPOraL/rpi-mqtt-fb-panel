@@ -4,7 +4,6 @@ Here are stored extra guidelins for you.
 ## AI collaborative project
 I'm relying on you to do a good job here and I'm happy to embrace the directions you're giving, but I'll be editing it on my own as well.
 
-
 ## Evolving your instruction set
 If I tell you to remember something, behave differently, or you realize yourself you'd benefit from remembering some specific guideline,
 please add it to this file (or modify existing guideline). The format of the guidelines is unspecified, except second-level headers to split
@@ -16,13 +15,13 @@ as well as any instructions for yourself to make your work more efficient and co
 Strive to adhere to the following guidelines to improve code quality and reduce the need for repeated corrections:
 
 - **Adhere to project conventions and specifications**
-  * Conventions are outlined in file CONVENTIONS.md
-  * Specification, if any, is available in file SPECIFICATION.md. If it doesn't exist, consider creating one anyway based on your understanding of what user has in mind wrt. the project.
+  * Conventions are outlined in file `CONVENTIONS.md`
+  * Specification, if any, is available in file `SPECIFICATION.md`. If it doesn't exist, consider creating one anyway based on your understanding of what user has in mind wrt. the project.
     Specification will double as a guide / checklist for you to know if what needed to be implemented already is.
 
 - **Build your own memory helpers to stay oriented**
   * Keep "Project Files and Structure" section of this file up to date;
-  * For larger tasks involving multiple conversation rounds, keep a running plan of your work in a separate file (say, PLAN.md), and update it to match the actual plan.
+  * For larger tasks involving multiple conversation rounds, keep a running plan of your work in a separate file (say, `PLAN.md`), and update it to match the actual plan.
   * Evolve guidelines in "Coding Practice Guidelines" sectionof this file based on user feedback.
 
 - **Proactively Apply DRY and Abstraction:**
@@ -85,24 +84,4 @@ This section outlines the core files of the project.
 *   `PLAN.md`: Phased implementation plan for ongoing development.
 *   `README.org`: General project overview and setup instructions.
 *   `AI.md`: This file, containing guidelines and notes for AI collaboration.
-
-## Evolving your instruction set
-If I tell you to remember something, behave differently, or you realize yourself you'd benefit from remembering some specific guideline,
-please add it to this file (or modify existing guideline). The format of the guidelines is unspecified, except second-level headers to split
-them by categories; otherwise, whatever works best for you is best. You may store information about the project you want to retain long-term,
-as well as any instructions for yourself to make your work more efficient and correct.
-
-## Coding Practice Guidelines
-
-Strive to adhere to the following guidelines to improve code quality and reduce the need for repeated corrections:
-
-- **Adhere to project conventions and specifications**
-  * Conventions are outlined in file `CONVENTIONS.md`
-  * Specification, if any, is available in file `SPECIFICATION.md`. If it doesn't exist, consider creating one anyway based on your understanding of what user has in mind wrt. the project.
-    Specification will double as a guide / checklist for you to know if what needed to be implemented already is.
-
-- **Build your own memory helpers to stay oriented**
-  * Keep "Project Files and Structure" section of this file up to date;
-  * For larger tasks involving multiple conversation rounds, keep a running plan of your work in a separate file (say, `PLAN.md`), and update it to match the actual plan.
-  * Evolve guidelines in "Coding Practice Guidelines" sectionof this file based on user feedback.
 
