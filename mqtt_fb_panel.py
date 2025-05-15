@@ -78,6 +78,7 @@ BODY_FONT    = ImageFont.truetype(
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
 
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
+LCARS_TITLE_TEXT = os.getenv("LCARS_TITLE_TEXT", "LCARS MQTT PANEL")
 MAX_MESSAGES_IN_STORE = 50 # Max number of messages to keep in the rolling display
 
 # ---------------------------------------------------------------------------
@@ -125,21 +126,85 @@ def blank():
     push(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOUR))
 
 
-def render(title: str, body: str):
+def render_messages():
+    """Renders the fixed title and a rolling list of messages from messages_store."""
     img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOUR)
     draw = ImageDraw.Draw(img)
 
-    # Title
-    tw, th = text_size(draw, title, font=TITLE_FONT)
-    draw.text(((WIDTH - tw) // 2, 10), title, font=TITLE_FONT, fill=TITLE_COLOUR)
+    # 1. Draw Fixed Title (top-right)
+    title_padding = 10
+    title_w, title_h = text_size(draw, LCARS_TITLE_TEXT, font=TITLE_FONT)
+    title_x = WIDTH - title_w - title_padding
+    title_y = title_padding
+    draw.text((title_x, title_y), LCARS_TITLE_TEXT, font=TITLE_FONT, fill=TITLE_COLOUR)
 
-    # Body wrapping
-    max_chars = max(1, int(WIDTH / (BODY_FONT.size * 0.55)))
-    y = th + 20
-    for para in body.split("\n"):
-        for line in textwrap.wrap(para, width=max_chars):
-            draw.text((10, y), line, font=BODY_FONT, fill=BODY_COLOUR)
-            y += BODY_FONT.size + 4
+    # 2. Define Message Area
+    message_area_start_y = title_y + title_h + title_padding
+    message_line_height = BODY_FONT.size + 4  # Font size + padding between lines
+    left_padding = 10
+    right_padding = 10
+
+    # 3. Prepare lines from messages_store
+    all_render_lines = []
+    # Estimate avg char width for text wrapping. 'M' is a wide character.
+    # If text_size returns (0,0) for a single char (older Pillow), use a fallback.
+    avg_char_width_M = text_size(draw, "M", BODY_FONT)[0]
+    if avg_char_width_M == 0: # Fallback if 'M' gives 0 width
+        avg_char_width_M = BODY_FONT.size * 0.55 # Rough estimate
+    
+    for msg_obj in list(messages_store): # Iterate a copy
+        try:
+            # Format timestamp
+            timestamp_dt = datetime.fromisoformat(msg_obj["timestamp"].replace('Z', '+00:00'))
+            ts_str = timestamp_dt.strftime("%H:%M:%S")
+        except ValueError:
+            ts_str = "??:??:??" # Fallback for invalid timestamp
+
+        prefix = f"[{ts_str}] [{msg_obj.get('source', 'N/A')}] "
+        
+        prefix_width = text_size(draw, prefix, BODY_FONT)[0]
+        available_text_pixel_width = WIDTH - left_padding - prefix_width - right_padding
+        
+        # Calculate characters for textwrap based on available pixel width
+        if avg_char_width_M > 0:
+            chars_for_message = max(1, int(available_text_pixel_width / avg_char_width_M))
+        else: # Should not happen with fallback, but as a safeguard
+            chars_for_message = 20 
+
+        message_text = msg_obj.get('text', '')
+        wrapped_text_lines = textwrap.wrap(message_text, width=chars_for_message, subsequent_indent="  ") # Indent subsequent lines of same message
+
+        if wrapped_text_lines:
+            all_render_lines.append(prefix + wrapped_text_lines[0])
+            for wrapped_line_part in wrapped_text_lines[1:]:
+                # For subsequent lines of a single wrapped message, we add them with prefix spacing
+                # The `subsequent_indent` in textwrap handles the visual indent *within* the wrapped part.
+                # Here, we ensure the line starts aligned with the message text, not the timestamp.
+                # This part might need refinement based on how textwrap.wrap + subsequent_indent behaves.
+                # A simpler approach: add prefix only to the first line.
+                all_render_lines.append(" " * text_size(draw, prefix, BODY_FONT)[0] // avg_char_width_M + wrapped_line_part) # Approximate spacing
+        elif message_text: # Non-empty message but wrap returned empty (e.g. only spaces)
+             all_render_lines.append(prefix + message_text)
+        else: # Empty message
+            all_render_lines.append(prefix)
+
+
+    # 4. Calculate how many lines fit and get the latest ones
+    if message_line_height > 0:
+        max_displayable_message_lines = (HEIGHT - message_area_start_y) // message_line_height
+    else:
+        max_displayable_message_lines = 0
+        
+    lines_to_display = all_render_lines[-max_displayable_message_lines:]
+
+    # 5. Draw the messages
+    current_y = message_area_start_y
+    for line_text in lines_to_display:
+        draw.text((left_padding, current_y), line_text, font=BODY_FONT, fill=BODY_COLOUR)
+        current_y += message_line_height
+        if current_y > HEIGHT: # Stop if we run out of screen
+            break
+            
     push(img)
 
 # ---------------------------------------------------------------------------
@@ -202,9 +267,7 @@ def on_mqtt(client, userdata, msg):
         print(f"Stored new message: {new_message}", flush=True)
         # print(f"Current messages_store: {list(messages_store)}", flush=True) # Uncomment for debugging
 
-        # Rendering will be handled in Phase 2. For now, we just store.
-        # The old render call is removed as it's incompatible with the new message structure.
-        # render(current["title"], current["body"]) # OLD RENDER CALL
+        render_messages() # Trigger re-render with new message
 
     except json.JSONDecodeError:
         print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text: {payload_str}", flush=True)
@@ -217,7 +280,7 @@ def on_mqtt(client, userdata, msg):
         }
         messages_store.append(new_message)
         print(f"Stored raw text message: {new_message}", flush=True)
-        # Future: Trigger render update here
+        render_messages() # Trigger re-render with new raw message
     except Exception as e:
         print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}", flush=True)
 
@@ -236,7 +299,20 @@ def main():
         probe(args.probe, args.fill)
         fb.close(); sys.exit(0)
     if args.debug:
-        render("MQTT Panel", "This is only a\nDEBUG splash.")
+        # Populate with sample messages for debug mode
+        messages_store.append({
+            "text": "This is a debug message for the LCARS panel.",
+            "source": "System", "importance": "info", "timestamp": datetime.now().isoformat()
+        })
+        messages_store.append({
+            "text": "Another short one.",
+            "source": "Debug", "importance": "info", "timestamp": datetime.now().isoformat()
+        })
+        messages_store.append({
+            "text": "This is a slightly longer debug message that should demonstrate how text wrapping might work on the display, hopefully spanning multiple lines if necessary.",
+            "source": "Debugger", "importance": "info", "timestamp": datetime.now().isoformat()
+        })
+        render_messages()
         fb.close(); sys.exit(0)
 
     # For MQTTv5, providing an empty client_id and setting protocol=mqtt.MQTTv5

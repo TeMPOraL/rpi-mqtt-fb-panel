@@ -19,15 +19,15 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Each item in the list should be a dictionary or a simple class instance representing the parsed message.
 
 ## Phase 2: Rolling Display & Fixed Title
-*   [ ] **Fixed Title:**
-    *   [ ] Add new environment variable `LCARS_TITLE_TEXT` for the fixed title.
-    *   [ ] Modify rendering logic to display this title (e.g., top-right aligned).
-*   [ ] **Rolling Message Display:**
-    *   [ ] Rewrite the `render` function.
-    *   [ ] Iterate through the stored messages (newest first at the bottom, or oldest first from the top).
-    *   [ ] Calculate how many messages fit on screen based on font size and available vertical space (initially using `BODY_FONT`).
-    *   [ ] Render each message's text.
-    *   [ ] Ensure the display updates dynamically as new messages arrive.
+*   [x] **Fixed Title:**
+    *   [x] Add new environment variable `LCARS_TITLE_TEXT` for the fixed title.
+    *   [x] Modify rendering logic to display this title (e.g., top-right aligned).
+*   [x] **Rolling Message Display:**
+    *   [x] Rewrite the `render` function.
+    *   [x] Iterate through the stored messages (oldest first from the top, displaying most recent that fit).
+    *   [x] Calculate how many messages fit on screen based on font size and available vertical space (initially using `BODY_FONT`).
+    *   [x] Render each message's text (formatted with timestamp, source, and wrapped content).
+    *   [x] Ensure the display updates dynamically as new messages arrive.
 
 ## Phase 3: LCARS Visuals
 *   [ ] **LCARS Font:**
