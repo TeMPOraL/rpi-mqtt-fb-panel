@@ -57,7 +57,7 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
             draw_lcars_shape(draw, current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, lc.BAR_HEIGHT, 0, button_colors[i]) # Square buttons
             draw_text_in_rect(draw, btn_text, lc.BODY_FONT,
                               current_x_bottom_bar, BOTTOM_BAR_Y, button_total_width, lc.BAR_HEIGHT,
-                              lc.TEXT_COLOR_BUTTON_LABEL, align="center")
+                              lc.TEXT_COLOR_BUTTON_LABEL, align="right", padding_x=lc.BUTTON_PADDING_X)
             current_x_bottom_bar += button_total_width + lc.PADDING
         else:
             # Not enough space for this button, break or log
