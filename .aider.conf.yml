@@ -1,0 +1,5 @@
+# Always read coding conventions
+read: CONVENTIONS.md
+
+# Have AI maintain a list of extra guidelines for itself
+file: AI.md
