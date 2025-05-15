@@ -72,7 +72,7 @@ BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
 title_font_nominal_height = TITLE_FONT.size # Using nominal size as proxy for actual text height for bar calculation
 # User wants bar height reduced by ~30% from a conceptual height that included padding.
 conceptual_padded_height = title_font_nominal_height + PADDING * 2
-reduced_bar_height_target = int(conceptual_padded_height * 0.5)
+reduced_bar_height_target = int(conceptual_padded_height * 0.7)
 
 # Ensure bar is at least tall enough for the title font.
 # This prevents text from being shifted outside the bar if the reduction is too aggressive
