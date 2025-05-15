@@ -93,19 +93,10 @@ def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.Imag
     # The caller should ensure text fits or handle truncation.
 
     text_x = rect_x + text_x_offset
-    # Calculate text Y position for a baseline anchor.
-    # The goal is to center the ascent part of the font within the given rect_h,
-    # allowing descenders to hang below if necessary.
-    # font.getmetrics() returns (ascent, descent). Ascent is height above baseline.
-    ascent, _ = font.getmetrics() # descent is not directly needed for this y_baseline calculation
-    
-    # The y-coordinate for a baseline anchor ("ls", "ms", "rs") is the y of the baseline.
-    # To center the ascent part (height `ascent`) within `rect_h`:
-    # The top of the ascent part would be at `rect_y + (rect_h - ascent) // 2`.
-    # The baseline is `ascent` pixels below that.
-    # So, y_baseline = rect_y + (rect_h - ascent) // 2 + ascent
-    # This simplifies to:
-    y_coord_for_baseline_anchor = rect_y + (rect_h + ascent) // 2
+    # Calculate text Y position (vertical centering for the top of the text's bounding box)
+    # text_h is the full bounding box height of the text, obtained from text_size().
+    # This approach centers the entire text block vertically within the rectangle.
+    y_coord_for_top_anchor = rect_y + (rect_h - text_h) // 2
 
     # Determine horizontal anchor character and X coordinate for that anchor point.
     # The original text_x_offset logic was for calculating the left edge of text.
@@ -125,6 +116,6 @@ def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.Imag
         anchor_char_h = "m"
         x_coord_for_anchor = rect_x + rect_w // 2
     
-    final_anchor = f"{anchor_char_h}s"  # e.g., "ls", "ms", "rs" (s for baseline)
+    final_anchor = f"{anchor_char_h}t"  # e.g., "lt", "mt", "rt" (t for top)
     
-    draw.text((x_coord_for_anchor, y_coord_for_baseline_anchor), text, font=font, fill=text_color, anchor=final_anchor)
+    draw.text((x_coord_for_anchor, y_coord_for_top_anchor), text, font=font, fill=text_color, anchor=final_anchor)
