@@ -61,6 +61,7 @@ Keep in mind that the Rapsberry Pi board in question is old and can only run 32-
 - CPU - Broadcom BCM2836 Quad-core ARM Cortex-A7 CPU
 - Speed - 900 MHz
 - OS - Raspbian GNU/Linux 11 (bullseye)
+- Python - 3.9.2 (Note: This version does not support `|` for type hints; use `typing.Optional` instead. Avoid features from Python 3.10+ unless explicitly polyfilled or checked.)
 - Memory - 1GB
 - Network - 100Mbps Ethernet
 - Video specs - H.264, MPEG-4 decode (1080p30); H.264 encode (1080p30), OpenGL ES 2.0

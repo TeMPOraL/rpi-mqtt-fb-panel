@@ -64,7 +64,8 @@ def push(img: Image.Image):
     else: # Fall‑back: XRGB8888 – assume little‑endian (most common for RPi framebuffers)
           # Or could be RGBA or BGRA depending on specific fb config.
           # Common for 32bpp on Pi is BGRA byte order for XRGB visual.
-        bgra = np.asarray(img.convert("RGBA"), dtype=np.uint8) # Convert to RGBA
+        # Convert to RGBA and ensure the array is writable by making a copy.
+        bgra = np.asarray(img.convert("RGBA"), dtype=np.uint8).copy()
         # If framebuffer expects BGRA (typical for XRGB on little-endian):
         # Swap R and B channels: R is at index 0, G at 1, B at 2, A at 3
         # We want B G R A
