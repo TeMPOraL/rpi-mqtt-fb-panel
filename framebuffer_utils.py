@@ -1,4 +1,5 @@
 import mmap, os, struct, fcntl, ctypes, array
+from typing import Optional
 from dataclasses import dataclass
 import numpy as np
 from PIL import Image
@@ -23,7 +24,7 @@ class FB:
         self.mem.close(); os.close(self.fd)
 
 
-def open_fb(dev: str | None = None) -> FB:
+def open_fb(dev: Optional[str] = None) -> FB:
     """Open the framebuffer (env FBDEV overrides *dev*). Works on 32‑bit Pi."""
     dev = os.getenv("FBDEV", dev or "/dev/fb0")
     fd = os.open(dev, os.O_RDWR | os.O_SYNC)
