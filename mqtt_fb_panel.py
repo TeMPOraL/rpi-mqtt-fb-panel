@@ -59,9 +59,9 @@ def render_messages():
     message_area_y_start = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING
     message_area_y_end = HEIGHT - lc.PADDING - lc.BAR_HEIGHT - lc.PADDING
     message_area_height = message_area_y_end - message_area_y_start
-    
+
     message_line_height = lc.BODY_FONT.size + 4  # Font size + padding between lines
-    
+
     # Column definitions
     col_source_max_chars = 20
     # Estimate source col width based on M chars, or use a fraction of screen.
@@ -69,15 +69,15 @@ def render_messages():
     # text_size is now imported from lcars_drawing_utils
     source_char_w_tuple = text_size(draw, "M", lc.BODY_FONT)
     source_char_w = source_char_w_tuple[0] if source_char_w_tuple[0] > 0 else lc.BODY_FONT.size * 0.6
-    
+
     col_source_width = int(min(WIDTH * 0.25, col_source_max_chars * source_char_w + lc.PADDING))
-    
+
     col_time_text_example = "00:00:00"
     col_time_width = text_size(draw, col_time_text_example, lc.BODY_FONT)[0] + lc.PADDING
 
     col_source_x = lc.PADDING
     # Time column is right-aligned, so its x is not fixed but calculated per line for alignment
-    
+
     col_message_x = col_source_x + col_source_width + lc.PADDING
     # Message width needs to account for the time column on the right
     # The space for time column is col_time_width.
@@ -99,16 +99,16 @@ def render_messages():
         source_text = msg_obj.get('source', 'N/A')
         if len(source_text) > col_source_max_chars:
             source_text = source_text[:col_source_max_chars-3] + "..."
-        
+
         message_text_content = msg_obj.get('text', '')
 
         # Wrap message_text_content
         if avg_char_width_message > 0 and col_message_width > 0:
             chars_for_message_col = max(1, int(col_message_width / avg_char_width_message))
             wrapped_message_lines = textwrap.wrap(message_text_content, width=chars_for_message_col)
-        else:
+        else: # Fallback if width is zero or negative
             wrapped_message_lines = [message_text_content] if message_text_content else [""]
-        
+
         if not wrapped_message_lines and message_text_content: # textwrap might return empty for only spaces
              wrapped_message_lines = [message_text_content]
         elif not wrapped_message_lines: # Genuinely empty message
@@ -126,28 +126,30 @@ def render_messages():
             })
 
     # Calculate how many lines fit and get the latest ones
+    lines_to_render_on_screen = []
     if message_line_height > 0 and message_area_height > 0:
         max_displayable_message_lines = message_area_height // message_line_height
-        lines_to_render_on_screen = processed_message_lines[-max_displayable_message_lines:]
-    else:
-        lines_to_render_on_screen = []
-        
+        if max_displayable_message_lines > 0:
+            lines_to_render_on_screen = processed_message_lines[-max_displayable_message_lines:]
+
     # Draw the messages
+    current_render_y = message_area_y_start
     for line_data in lines_to_render_on_screen:
-        if current_render_y + BODY_FONT.size > message_area_y_end: # Check if line fits
+        # Ensure text fits vertically before drawing
+        # Using BODY_FONT.size as an estimate of actual drawn height.
+        if current_render_y + lc.BODY_FONT.size > message_area_y_end:
             break
 
         if line_data["source"]: # Draw source only if it's the first line of a message
-            draw.text((col_source_x, current_render_y), line_data["source"], font=BODY_FONT, fill=TEXT_COLOR_BODY)
-        
-        draw.text((col_message_x, current_render_y), line_data["msg_part"], font=BODY_FONT, fill=TEXT_COLOR_BODY)
-        
+            draw.text((col_source_x, current_render_y), line_data["source"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+
+        draw.text((col_message_x, current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+
         if line_data["time"]: # Draw time only if it's the first line of a message
-            # For right alignment of time:
-            time_w, _ = text_size(draw, line_data["time"], BODY_FONT)
-            actual_time_x = WIDTH - PADDING - time_w # Align to far right edge of screen minus padding
-            draw.text((actual_time_x, current_render_y), line_data["time"], font=BODY_FONT, fill=TEXT_COLOR_BODY)
-            
+            time_w, _ = text_size(draw, line_data["time"], lc.BODY_FONT)
+            actual_time_x = WIDTH - lc.PADDING - time_w # Align to far right edge of screen minus PADDING
+            draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=lc.TEXT_COLOR_BODY)
+
         current_render_y += message_line_height
 
     push(img)
