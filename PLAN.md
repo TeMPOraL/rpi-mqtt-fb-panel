@@ -30,15 +30,20 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Ensure the display updates dynamically as new messages arrive.
 
 ## Phase 3: LCARS Visuals
-*   [ ] **LCARS Font:**
-    *   [ ] Add new environment variable `LCARS_FONT_PATH` for the `.ttf` font file.
-    *   [ ] User to provide an LCARS-style `.ttf` font.
-    *   [ ] Update font loading (`ImageFont.truetype()`) to use this new font for messages and title.
-    *   [ ] Adjust font sizes as needed.
-*   [ ] **Basic LCARS Graphics:**
-    *   [ ] Define LCARS color palette (new constants).
-    *   [ ] In the `render` function, add `draw.rectangle()`, `draw.line()` calls to create static LCARS elements (e.g., header bar, side elements, message area borders).
-    *   [ ] Constrain message rendering to the designated message area within the LCARS layout.
+*   [x] **LCARS Font:** (User reported completing initial font setup)
+    *   [ ] Consider adding `LCARS_FONT_PATH` environment variable for easier font switching if current hardcoded path is not final.
+    *   [x] User has provided and configured an LCARS-style `.ttf` font.
+    *   [x] Font loading updated by user.
+    *   [ ] Font sizes may need further adjustment as UI evolves.
+*   [ ] **Basic LCARS Graphics (In Progress):**
+    *   [x] Define extended LCARS color palette (new constants added).
+    *   [x] Implement helper function for drawing LCARS shapes (rectangles with optional rounded ends).
+    *   [ ] Redesign `render` function for new LCARS layout:
+        *   [ ] Draw top bar with "EVENT LOG" label and rounded terminators `(]` and `[)`.
+        *   [ ] Draw bottom bar with "MQTT STREAM" label, placeholder buttons `[CLEAR]`, `[RELATIVE]`, `[CLOCK]`, and terminators `(]` and `[==)`.
+        *   [ ] Implement 3-column message display (Source, Message, Timestamp) in the central area.
+    *   [ ] Constrain message rendering to the designated message area.
+    *   [ ] Refine visual alignment and spacing of all elements.
 
 ## Phase 4: Sticky Messages
 *   [ ] **Message Importance Handling:**
@@ -75,10 +80,24 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [ ] When a touch event occurs within the button's coordinates, trigger the clearing action for sticky messages.
 *   [ ] **Debouncing/Event Filtering:** Implement if necessary for touch input.
 
+## Phase 7: Button Functionality & Advanced Features (New)
+*   [ ] **Implement "CLEAR" Button Logic:**
+    *   [ ] On touch (or MQTT command), clear all messages from `messages_store` (including future sticky messages).
+    *   [ ] Re-render the display.
+*   [ ] **Implement "RELATIVE" Button Logic:**
+    *   [ ] Add a state variable to toggle between absolute and relative timestamps.
+    *   [ ] Modify message rendering to display timestamps as "HH:MM:SS" (absolute) or "-HH:MM:SS ago" (relative).
+    *   [ ] Update button visual state if possible (e.g., highlight).
+*   [ ] **Implement "CLOCK" Button Logic:**
+    *   [ ] Add a global state variable to switch between "event log" mode and "clock" mode.
+    *   [ ] Design and implement a full-screen LCARS-style clock display function.
+    *   [ ] Modify main loop/render logic to show the clock when in "clock" mode.
+    *   [ ] The "CLOCK" button (or another mechanism) should allow switching back to the event log.
+
 ## Post-Implementation
 *   [ ] **Documentation Update:**
     *   [ ] Update `README.org` with new features, configuration, and setup.
-    *   [ ] Update `mqtt_alert_panel.env.example`.
+    *   [ ] Update `mqtt_alert_panel.env.example` (e.g. for `DISPLAY_ROTATE`).
 *   [ ] **Code Cleanup & Refinement:**
     *   [ ] Review for performance, especially on RPi 2.
     *   [ ] Refactor for clarity and maintainability.

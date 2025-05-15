@@ -52,19 +52,30 @@
 ### 3.3. Display and User Interface (LCARS Theme)
 *   **General Layout:**
     *   Inspired by LCARS design principles: characteristic shapes (rounded ends, elbows), color palette, and typography.
-    *   Screen divided into a header/title area, a main message display area, and potentially a small control area (for the clear button).
+    *   The screen is structured with a top status bar, a central message display area, and a bottom control bar.
+    *   **Top Bar:** A horizontal bar at the top of the screen.
+        *   Contains a left rounded terminator `(]`, a central segment displaying the title "EVENT LOG" (using `TITLE_FONT`), and a right rounded terminator `[)`.
+        *   Bar elements typically use `LCARS_ORANGE`.
+    *   **Bottom Bar:** A horizontal bar at the bottom of the screen.
+        *   Contains a left rounded terminator `(]`, followed by the label "MQTT STREAM" (using `TITLE_FONT`).
+        *   To the right of the label, three placeholder square buttons: `[CLEAR]`, `[RELATIVE]`, `[CLOCK]` (using `BODY_FONT` for labels, distinct background colors).
+        *   The bar is completed with a right-rounded fill element `[==)`.
+        *   Bar elements typically use `LCARS_ORANGE`, with buttons having specific LCARS colors (e.g., red, blue, yellow). Button labels are black.
+    *   **Message Display Area:** The central portion of the screen between the top and bottom bars.
 *   **Title Bar:**
-    *   `LCARS_TITLE_TEXT` (string, environment variable): A fixed title displayed prominently (e.g., top of the screen, right-aligned). Example: "STARBASE 74 - ALERT STATUS".
+    *   The `LCARS_TITLE_TEXT` environment variable defines a general panel title, which may or may not be displayed directly depending on the specific screen layout. The primary visual titles are "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label).
 *   **Font:**
-    *   `LCARS_FONT_PATH` (string, environment variable): Path to a `.ttf` LCARS-style font file. This font will be used for the title and messages.
-*   **Colors:** A predefined LCARS color palette will be used (e.g., oranges, blues, creams). Specific colors for text, backgrounds, and UI elements.
-*   **Message Area:**
-    *   Occupies the largest portion of the screen (e.g., bottom 3/4).
-    *   Displays a list of messages, with the most recent ones appearing and older ones scrolling off (unless sticky).
-    *   **Message Format on Screen (Example):**
-        `[HH:MM:SS] [SOURCE] Message text content here...`
-        (Timestamp format might be configurable or simplified from the input).
-    *   Messages with `importance` "warning" or "error" may have distinct visual cues (e.g., background color highlight, prefix icon).
+    *   `LCARS_FONT_PATH` (string, environment variable, if implemented): Path to a `.ttf` LCARS-style font file. This font will be used for titles and messages. (Currently, font paths are hardcoded but user has indicated they've set up an LCARS font).
+    *   `TITLE_FONT` and `BODY_FONT` are used for different UI text elements.
+*   **Colors:** A predefined LCARS color palette is used (e.g., oranges, blues, creams, specific button colors). Key colors are defined as constants in the script.
+*   **Message Area (3-Column Layout):**
+    *   Occupies the space between the top and bottom bars.
+    *   Displays a list of messages, with the most recent ones appearing at the bottom and older ones scrolling off (unless sticky).
+    *   **Message Format on Screen (3 Columns):**
+        1.  **Source Column (Left):** Displays `msg_obj.get('source', 'N/A')`. Fixed width (e.g., 20 characters or ~1/4 screen width), truncated with "..." if too long. Left-aligned.
+        2.  **Message Column (Center):** Displays `msg_obj.get('text', '')`. Uses remaining width between Source and Timestamp columns. Text is wrapped to fit. Left-aligned.
+        3.  **Timestamp Column (Right):** Displays message timestamp, formatted as `HH:MM:SS`. Right-aligned within its allocated space near the screen edge.
+    *   Messages with `importance` "warning" or "error" may have distinct visual cues (e.g., background color highlight, prefix icon) - *to be implemented with sticky messages*.
 *   **Persistent (Sticky) Messages:**
     *   Messages marked as "warning" or "error" will become "sticky."
     *   When a sticky message scrolls to the top of the active message display area, it will remain fixed there.
@@ -76,19 +87,30 @@
 *   **Touchscreen Button (Clear Sticky Messages):**
     *   A visually distinct button element within the LCARS UI (e.g., labeled "CLEAR ALERTS").
     *   Requires a touchscreen configured for input (e.g., via `evdev`).
-    *   Tapping this button will remove all currently displayed sticky ("warning" and "error") messages. Normal "info" messages are unaffected.
+    *   Tapping this button will remove all currently displayed sticky ("warning" and "error") messages. Normal "info" messages are unaffected. This button is currently a visual placeholder.
+*   **Relative Timestamp Button (`[RELATIVE]`):**
+    *   A visually distinct button element in the bottom LCARS bar, labeled "RELATIVE".
+    *   **Function (to be implemented):** Toggles the display format of timestamps in the message area.
+        *   **Absolute Mode:** Timestamps show the actual time of the event (e.g., "12:45:00").
+        *   **Relative Mode:** Timestamps show how long ago the message arrived (e.g., "-00:05:30" for 5 minutes and 30 seconds ago).
+    *   Requires touchscreen input. This button is currently a visual placeholder.
+*   **Clock Mode Button (`[CLOCK]`):**
+    *   A visually distinct button element in the bottom LCARS bar, labeled "CLOCK".
+    *   **Function (to be implemented):** Switches the entire display from the event log view to a full-screen LCARS-themed clock.
+        *   Tapping it again (or another defined interaction) would switch back to the event log view.
+    *   Requires touchscreen input. This button is currently a visual placeholder.
 *   **Alternative Clearing Mechanism (MQTT Command):**
     *   As a fallback or for systems without touch, a specific MQTT message can clear sticky alerts.
     *   Topic: `MQTT_TOPIC_PREFIX/control` (or similar configurable control topic).
-    *   Payload: `{"command": "clear_sticky"}`.
+    *   Payload: `{"command": "clear_sticky"}`. (This remains relevant for clearing sticky messages, the `[CLEAR]` button will eventually perform a similar action for all messages).
 
 ### 3.5. Configuration
 Environment variables will be the primary method of configuration, loaded from a file (e.g., `/home/pi/.config/mqtt_alert_panel.env`).
 *   `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASS`
 *   `MQTT_TOPIC_PREFIX`
-*   `LCARS_TITLE_TEXT`
-*   `LCARS_FONT_PATH`
-*   `DISPLAY_ROTATE`
+*   `LCARS_TITLE_TEXT` (General panel title, specific bar labels like "EVENT LOG" are currently hardcoded)
+*   `LCARS_FONT_PATH` (If implemented for dynamic font loading)
+*   `DISPLAY_ROTATE` (Controls screen rotation: 0, 90, 180, 270)
 *   (Potentially others for fine-tuning colors, timestamp formats, max number of messages if not dynamically calculated).
 
 ### 3.6. Operational Modes (Command-line Arguments)
