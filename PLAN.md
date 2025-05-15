@@ -30,8 +30,8 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Ensure the display updates dynamically as new messages arrive.
 
 ## Phase 3: LCARS Visuals
-*   [ ] **LCARS Font:** (User reported completing initial font setup)
-    *   [ ] Consider adding `LCARS_FONT_PATH` environment variable for easier font switching if current hardcoded path is not final.
+*   [x] **LCARS Font:** (User reported completing initial font setup)
+    *   [x] Consider adding `LCARS_FONT_PATH` environment variable for easier font switching if current hardcoded path is not final.
     *   [x] User has provided and configured an LCARS-style `.ttf` font.
     *   [x] Font loading updated by user.
     *   [x] Font sizes may need further adjustment as UI evolves.
