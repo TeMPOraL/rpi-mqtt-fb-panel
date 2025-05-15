@@ -239,11 +239,13 @@ def main():
         render("MQTT Panel", "This is only a\nDEBUG splash.")
         fb.close(); sys.exit(0)
 
-    # For paho-mqtt v1.x, client_id="" and clean_session=True is standard for a non-persistent session.
-    # For MQTTv5, clean_session=True generally implies clean_start=True.
-    client = mqtt.Client(client_id="", clean_session=True, protocol=mqtt.MQTTv5)
-    # If using paho-mqtt v2.x, the following would be more explicit:
-    # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="", protocol=mqtt.MQTTv5, clean_start=True)
+    # For MQTTv5, providing an empty client_id and setting protocol=mqtt.MQTTv5
+    # should result in a non-persistent session (clean start).
+    # The `clean_session` parameter is not used for MQTTv5 and causes an error.
+    client = mqtt.Client(client_id="", protocol=mqtt.MQTTv5)
+    # If using paho-mqtt v2.x, one might use:
+    # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="", protocol=mqtt.MQTTv5)
+    # and then set client.connect(..., clean_start=True, ...)
     
     client.on_message = on_mqtt
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
