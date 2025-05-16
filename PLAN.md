@@ -5,7 +5,7 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
 ## Phase 1: MQTT & Basic Message Handling
 *   [x] **Implement MQTTv5:**
     *   [x] Update `paho-mqtt` client initialization to specify `protocol=mqtt.MQTTv5`.
-    *   [ ] Verify MQTTv5 features if any specific ones are leveraged (initially, just compatibility).
+    *   [x] Verify MQTTv5 features if any specific ones are leveraged (initially, just compatibility).
 *   [x] **Wildcard Topic Subscription:**
     *   [x] Add new environment variable `MQTT_TOPIC_PREFIX` (e.g., `home/lcars_panel/`).
     *   [x] Modify `client.subscribe()` to use the prefix with a wildcard (e.g., `home/lcars_panel/#`).
@@ -13,17 +13,18 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
 *   [x] **JSON Message Parsing:**
     *   [x] In `on_mqtt` callback, attempt to parse `msg.payload.decode()` using `json.loads()`.
     *   [x] Define initial expected JSON structure (e.g., `{"message": "text", "importance": "info", "source": "device_name"}`).
-    *   [x] Implement error handling for malformed JSON.
+    *   [x] Implement error handling for malformed JSON (falls back to raw text).
+    *   [x] Derive source from topic suffix for plaintext MQTT messages.
 *   [x] **Message Storage:**
     *   [x] Replace `current = {"title": "", "body": ""}` with a list or `collections.deque` to store incoming message objects (parsed from JSON).
-    *   [x] Each item in the list should be a dictionary or a simple class instance representing the parsed message.
+    *   [x] Each item in the list should be a dictionary or a simple class instance representing the parsed message (`Message` dataclass).
 
 ## Phase 2: Rolling Display & Fixed Title
 *   [x] **Fixed Title:**
-    *   [x] Add new environment variable `LCARS_TITLE_TEXT` for the fixed title.
+    *   [x] Add new environment variable `LCARS_TITLE_TEXT` for the fixed title (Note: UI uses hardcoded "EVENT LOG" and "MQTT STREAM" currently).
     *   [x] Modify rendering logic to display this title (e.g., top-right aligned).
 *   [x] **Rolling Message Display:**
-    *   [x] Rewrite the `render` function.
+    *   [x] Rewrite the `render` function (`render_messages`).
     *   [x] Iterate through the stored messages (oldest first from the top, displaying most recent that fit).
     *   [x] Calculate how many messages fit on screen based on font size and available vertical space (initially using `BODY_FONT`).
     *   [x] Render each message's text (formatted with timestamp, source, and wrapped content).
@@ -41,14 +42,29 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Implement helper function for drawing LCARS shapes (rectangles with optional rounded ends).
     *   [x] Redesign `render` function for new LCARS layout:
         *   [x] Draw top bar with "EVENT LOG" label and rounded terminators `(]` and `[)`.
-        *   [x] Draw bottom bar with "MQTT STREAM" label, placeholder buttons `[CLEAR]`, `[RELATIVE]`, `[CLOCK]`, and terminators `(]` and `[==)`.
+        *   [x] Draw bottom bar with "MQTT STREAM" label, placeholder buttons `[CLEAR]`, `[RELATIVE]`, `[CLOCK]`, and terminators `(]` and `[)`.
         *   [x] Implement 3-column message display (Source, Message, Timestamp) in the central area.
     *   [x] Constrain message rendering to the designated message area.
     *   [x] Refine visual alignment and spacing of all elements.
 
+## Phase 3.5: Control Channel & Debugging (Feature Complete)
+*   [x] **Control Topic Subscription:**
+    *   [x] Subscribe to `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`).
+*   [x] **Control Message Handling & Display:**
+    *   [x] Configurable display of control messages via `LOG_CONTROL_MESSAGES` env var.
+    *   [x] Source formatted as `LCARS/<suffix>`.
+    *   [x] Importance set to `"control"` with a distinct color.
+    *   [x] Message text displays payload directly.
+*   [x] **`debug-layout` Command:**
+    *   [x] Toggle layout debugging (`"enable"`/`"disable"` payload).
+    *   [x] Visual feedback: Green bounding boxes for UI elements, pink for message columns, blue for message wrap line.
+*   [x] **`log-control` Command:**
+    *   [x] Toggle logging of control messages to the main display (`"enable"`/`"disable"` payload).
+
 ## Phase 4: Sticky Messages
 *   [ ] **Message Importance Handling:**
-    *   [ ] Ensure JSON messages can include an `importance` field ("info", "warning", "error").
+    *   [x] Ensure JSON messages can include an `importance` field ("info", "warning", "error"). (Implemented in `Message` dataclass and parsing)
+    *   [x] Store this importance level with each message object. (Implemented)
     *   [ ] Store this importance level with each message object.
 *   [ ] **Data Storage for Sticky Messages:**
     *   [ ] Decide on a strategy:

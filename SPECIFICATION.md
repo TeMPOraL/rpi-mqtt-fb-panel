@@ -7,14 +7,15 @@
 
 ## 2. Core Features
 
-*   **MQTT v5 Client:** Utilizes MQTT protocol version 5 for communication.
-*   **Wildcard Topic Subscription:** Listens to a range of topics under a configurable prefix.
-*   **Structured Message Parsing:** Processes messages formatted in JSON, allowing for richer data content.
-*   **LCARS-Themed User Interface:** Presents information within a graphical interface inspired by Star Trek's LCARS design.
-*   **Rolling Message Display:** Shows a continuously updating stream of the most recent messages.
-*   **Persistent Error/Warning Messages:** "Sticky" messages of high importance (errors, warnings) remain on screen until manually cleared.
-*   **Touchscreen Interaction:** Allows clearing of persistent messages via an on-screen button (requires touchscreen).
-*   **Configurability:** Key parameters (MQTT details, topic, title, fonts) are configurable via environment variables.
+*   **MQTT v5 Client:** Utilizes MQTT protocol version 5 for communication. (Implemented)
+*   **Wildcard Topic Subscription:** Listens to a range of topics under a configurable prefix. (Implemented)
+*   **Structured Message Parsing:** Processes messages formatted in JSON, allowing for richer data content. Also handles plaintext messages, deriving source from topic. (Implemented)
+*   **LCARS-Themed User Interface:** Presents information within a graphical interface inspired by Star Trek's LCARS design. (Implemented)
+*   **Rolling Message Display:** Shows a continuously updating stream of the most recent messages. (Implemented)
+*   **Persistent Error/Warning Messages:** "Sticky" messages of high importance (errors, warnings) remain on screen until manually cleared. (Not Yet Implemented)
+*   **Touchscreen Interaction:** Allows clearing of persistent messages via an on-screen button (requires touchscreen). (Placeholders Implemented)
+*   **Configurability:** Key parameters (MQTT details, topic, title, fonts, control channel behavior) are configurable via environment variables. (Implemented)
+*   **Control Channel & Debugging:** MQTT-based control for debugging and message logging. (Implemented)
 
 ## 3. Detailed Functionality
 
@@ -46,8 +47,12 @@
         *   `"info"` (default): Standard informational message.
         *   `"warning"`: Indicates a potential issue or caution. Becomes a sticky message.
         *   `"error"`: Indicates an error or critical failure. Becomes a sticky message.
+        *   `"control"`: Used for messages originating from the control channel, displayed with a specific color.
     *   `timestamp` (string/number, optional): ISO 8601 formatted timestamp (e.g., "YYYY-MM-DDTHH:MM:SSZ") or Unix epoch. If not provided, the panel will use the message arrival time.
-*   **Error Handling:** Messages not conforming to valid JSON or missing the mandatory `message` field will be logged (if logging is implemented) and discarded without display.
+*   **Error Handling & Plaintext:**
+    *   Messages not conforming to valid JSON or missing the mandatory `message` field will be treated as plaintext.
+    *   For plaintext messages, the `source` is derived from the MQTT topic suffix relative to `MQTT_TOPIC_PREFIX`. `importance` defaults to "info".
+    *   The entire payload is treated as the `message` text.
 
 ### 3.3. Display and User Interface (LCARS Theme)
 *   **General Layout:**
@@ -59,13 +64,13 @@
     *   **Bottom Bar:** A horizontal bar at the bottom of the screen.
         *   Contains a left rounded terminator `(]`, followed by the label "MQTT STREAM" (using `TITLE_FONT`).
         *   To the right of the label, three placeholder square buttons: `[CLEAR]`, `[RELATIVE]`, `[CLOCK]` (using `BODY_FONT` for labels, distinct background colors).
-        *   The bar is completed with a right-rounded fill element `[==)`.
+        *   The bar is completed with a right rounded terminator `[)`.
         *   Bar elements typically use `LCARS_ORANGE`, with buttons having specific LCARS colors (e.g., red, blue, yellow). Button labels are black.
     *   **Message Display Area:** The central portion of the screen between the top and bottom bars.
 *   **Title Bar:**
-    *   The `LCARS_TITLE_TEXT` environment variable defines a general panel title, which may or may not be displayed directly depending on the specific screen layout. The primary visual titles are "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label).
+    *   The `LCARS_TITLE_TEXT` environment variable defines a general panel title. Currently, this variable is not directly rendered on the screen; the UI uses fixed titles "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label).
 *   **Font:**
-    *   `LCARS_FONT_PATH` (string, environment variable, if implemented): Path to a `.ttf` LCARS-style font file. This font will be used for titles and messages. (Currently, font paths are hardcoded but user has indicated they've set up an LCARS font).
+    *   `LCARS_FONT_PATH` (string, environment variable): Path to a `.ttf` LCARS-style font file. This font is used for titles and messages. Fallback mechanisms are in place if the specified font is not found.
     *   `TITLE_FONT` and `BODY_FONT` are used for different UI text elements.
 *   **Colors:** A predefined LCARS color palette is used (e.g., oranges, blues, creams, specific button colors). Key colors are defined as constants in the script.
 *   **Message Area (3-Column Layout):**
@@ -88,22 +93,22 @@
     *   A visually distinct button element within the LCARS UI (e.g., labeled "CLEAR ALERTS").
     *   Requires a touchscreen configured for input (e.g., via `evdev`).
     *   Tapping this button will remove all currently displayed sticky ("warning" and "error") messages. Normal "info" messages are unaffected. This button is currently a visual placeholder.
-*   **Control Channel & Debugging:**
-    *   **Control Topic:** The panel subscribes to a dedicated control topic prefix, configurable via `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`, where `<hostname>` is the device's hostname). MQTT topic names can contain hyphens.
+*   **Control Channel & Debugging (Implemented):**
+    *   **Control Topic:** The panel subscribes to a dedicated control topic prefix, configurable via `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`, where `<hostname>` is the device's hostname). MQTT topic names can contain hyphens. (Implemented)
     *   **Control Message Display:**
-        *   Optionally, messages received on the control channel can be displayed in the main message list. This is controlled by the `LOG_CONTROL_MESSAGES` environment variable (defaults to true).
-        *   If displayed, the message `source` will be `LCARS/<suffix>`, where `<suffix>` is the part of the topic after the control prefix.
-        *   These messages will have an `importance` of `"control"` and be displayed with a distinct color (e.g., `LCARS_CYAN`).
-    *   **Supported Control Commands (payload is the message content):**
+        *   Optionally, messages received on the control channel can be displayed in the main message list. This is controlled by the `LOG_CONTROL_MESSAGES` environment variable (defaults to true). (Implemented)
+        *   If displayed, the message `source` will be `LCARS/<suffix>`, where `<suffix>` is the part of the topic after the control prefix. The message `text` will be the raw payload of the control message. (Implemented)
+        *   These messages will have an `importance` of `"control"` and be displayed with a distinct color (e.g., `LCARS_CYAN`). (Implemented)
+    *   **Supported Control Commands (payload is the message content):** (Implemented)
         *   Topic Suffix: `debug-layout`
             *   Payload `"enable"`: Turns on layout debugging.
             *   Payload `"disable"` or empty string: Turns off layout debugging.
         *   Topic Suffix: `log-control`
             *   Payload `"enable"`: Control messages will be added to the main message list.
             *   Payload `"disable"` or empty string: Control messages will not be added to the main message list.
-    *   **Layout Debugging Visuals:**
+    *   **Layout Debugging Visuals:** (Implemented)
         *   When enabled, all standard LCARS UI elements (bars, endcaps, buttons, text elements drawn by `draw_lcars_shape` and `draw_text_in_rect`) will have their bounding boxes rendered as a 1-pixel green outline.
-        *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline.
+        *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline. A blue vertical line indicates the calculated message wrapping point in the message column.
 *   **Relative Timestamp Button (`[RELATIVE]`):**
     *   A visually distinct button element in the bottom LCARS bar, labeled "RELATIVE".
     *   **Function (to be implemented):** Toggles the display format of timestamps in the message area.
@@ -126,10 +131,11 @@ Environment variables will be the primary method of configuration, loaded from a
 *   `MQTT_TOPIC_PREFIX`
 *   `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/alert-panel/` or `lcars/<hostname>/`)
 *   `LOG_CONTROL_MESSAGES` (boolean, e.g., `true` or `false`, defaults to `true`. Controls if messages from `MQTT_CONTROL_TOPIC_PREFIX` are displayed in the event log)
-*   `LCARS_TITLE_TEXT` (General panel title, specific bar labels like "EVENT LOG" are currently hardcoded)
-*   `LCARS_FONT_PATH` (If implemented for dynamic font loading)
+*   `LCARS_TITLE_TEXT` (General panel title, specific bar labels like "EVENT LOG" are currently hardcoded as part of the UI components)
+*   `LCARS_FONT_PATH` (Path to the LCARS font file)
+*   `MAX_MESSAGES_IN_STORE` (Integer, maximum number of messages to keep in the rolling display buffer)
 *   `DISPLAY_ROTATE` (Controls screen rotation: 0, 90, 180, 270)
-*   (Potentially others for fine-tuning colors, timestamp formats, max number of messages if not dynamically calculated).
+*   (Potentially others for fine-tuning colors, timestamp formats).
 
 ### 3.6. Operational Modes (Command-line Arguments)
 *   **Default Mode:** Runs the full application, connects to MQTT, displays messages.
