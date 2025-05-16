@@ -55,8 +55,10 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, title_text: str
     if bar_segment_width > 0:
         draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS, debug_draw_bbox=debug_layout_enabled)
 
-def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int, debug_layout_enabled: bool = False):
-    """Renders the bottom LCARS bar with 'MQTT STREAM' label and buttons."""
+def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int, 
+                      label_text: str, buttons_config: List[Dict[str, Any]], 
+                      debug_layout_enabled: bool = False):
+    """Renders the bottom LCARS bar with a dynamic label and buttons."""
     BOTTOM_BAR_Y = screen_height - lc.PADDING - lc.BAR_HEIGHT
     left_terminator_width = lc.BAR_HEIGHT # Same as top bar
 

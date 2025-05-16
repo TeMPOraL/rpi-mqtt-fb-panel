@@ -59,6 +59,7 @@ MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the mess
 # Global application state
 debug_layout_enabled = False
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
+current_display_mode = "events" # "events" or "clock"
 
 # ---------------------------------------------------------------------------
 # Message Dataclass
@@ -114,10 +115,108 @@ def _calculate_message_area_layout(draw: ImageDraw.ImageDraw) -> dict:
     return layout
 
 # ---------------------------------------------------------------------------
-# Message Processing for Display
+# Timezone and Font Helper Functions
 # ---------------------------------------------------------------------------
-def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process: list[Message], layout: dict) -> list[dict]:
-    """Formats and wraps messages from the store into lines suitable for display."""
+def _get_timezone_details_str() -> str:
+    """Generates a timezone string like 'Europe/Warsaw - CEST - UTC+02:00'."""
+    try:
+        dt_now_local = datetime.now().astimezone()
+        tz_name_full = ""
+        if tzlocal:
+            try:
+                tz_name_full = tzlocal.get_localzone_name()
+            except Exception: # tzlocal can sometimes fail
+                tz_name_full = str(dt_now_local.tzinfo) # Fallback to tzinfo string
+        else: # tzlocal not available
+             # Try to get a ZoneInfo key if possible, otherwise just use tzname()
+            try:
+                # This is a guess; dt_now_local.tzinfo might not have a 'key'
+                # and tzname() is often just an abbreviation.
+                if hasattr(dt_now_local.tzinfo, 'key'): # type: ignore
+                     tz_name_full = dt_now_local.tzinfo.key # type: ignore
+                else: # Fallback if no key
+                    tz_name_full = dt_now_local.tzname() if dt_now_local.tzname() else str(dt_now_local.tzinfo)
+
+            except Exception:
+                 tz_name_full = str(dt_now_local.tzinfo) # Last resort fallback
+
+        abbreviation = dt_now_local.tzname() if dt_now_local.tzname() else ""
+        
+        offset_timedelta = dt_now_local.utcoffset()
+        if offset_timedelta is not None:
+            total_seconds = offset_timedelta.total_seconds()
+            offset_hours = int(total_seconds // 3600)
+            offset_minutes = int((total_seconds % 3600) // 60)
+            utc_offset_str = f"UTC{offset_hours:+03d}:{offset_minutes:02d}"
+        else:
+            utc_offset_str = "UTC" # Should not happen with astimezone()
+
+        # Filter out potentially redundant abbreviation if it's same as full name (e.g. for "UTC")
+        if tz_name_full == abbreviation:
+            return f"{tz_name_full} - {utc_offset_str}"
+        return f"{tz_name_full} - {abbreviation} - {utc_offset_str}"
+
+    except Exception as e:
+        print(f"Error getting timezone details: {e}", flush=True)
+        # Fallback to simpler local time info if complex parsing fails
+        try:
+            dt_now_local = datetime.now().astimezone()
+            return f"{dt_now_local.tzname()} {dt_now_local.strftime('%z')}"
+        except: # Final fallback
+            return "Local Time"
+
+
+def _get_max_font_for_text_and_space(draw: ImageDraw.ImageDraw, text: str, font_path: str,
+                                     target_height: int, target_width: int,
+                                     initial_font_size: int = 120, min_font_size: int = 10,
+                                     font_size_step: int = 2) -> Tuple[Optional[ImageFont.FreeTypeFont], int, int]:
+    """
+    Finds the largest font size where 'text' fits within 'target_height' and 'target_width'.
+    Returns (font, text_w, text_h) or (None, 0, 0) if no fit.
+    """
+    if not text or target_height <= 0 or target_width <= 0:
+        return None, 0, 0
+
+    current_size = initial_font_size
+    best_font: Optional[ImageFont.FreeTypeFont] = None
+    last_w, last_h = 0, 0
+
+    while current_size >= min_font_size:
+        try:
+            font = ImageFont.truetype(font_path, current_size)
+            text_w, text_h = text_size(draw, text, font)
+
+            if text_h <= target_height and text_w <= target_width:
+                best_font = font
+                last_w, last_h = text_w, text_h
+                break # Found a fit
+            # Store last attempt for debug or if no fit, even if it didn't fit
+            last_w, last_h = text_w, text_h 
+        except IOError: 
+            print(f"Warning: Could not load font {font_path} at size {current_size}", flush=True)
+            pass 
+        except Exception as e:
+            print(f"Error loading font or getting text size: {e}", flush=True)
+            pass
+
+        current_size -= font_size_step
+    
+    if best_font:
+        return best_font, last_w, last_h
+    else: # No font found that fits, try to return the smallest one attempted
+        try: 
+            font = ImageFont.truetype(font_path, min_font_size)
+            # Recalculate w,h for this smallest font, as last_w, last_h might be from a larger non-fitting one
+            text_w_min, text_h_min = text_size(draw, text, font)
+            return font, text_w_min, text_h_min 
+        except:
+            return None, 0, 0 # Absolute fallback
+
+# ---------------------------------------------------------------------------
+# Message Processing for Display (Event Log)
+# ---------------------------------------------------------------------------
+def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process: List[Message], layout: dict) -> List[dict]:
+    """Formats and wraps messages from the store into lines suitable for display (Event Log)."""
     processed_message_lines = []
     col_source_max_chars = 20 # Should ideally come from layout or be a constant
 
@@ -152,20 +251,10 @@ def _process_messages_for_display(draw: ImageDraw.ImageDraw, messages_to_process
     return processed_message_lines
 
 # ---------------------------------------------------------------------------
-# Main Rendering Function
+# Mode-Specific Content Area Renderers
 # ---------------------------------------------------------------------------
-def render_messages():
-    """Renders the LCARS UI and a rolling list of messages."""
-    img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
-    draw = ImageDraw.Draw(img)
-
-    # 1. Draw LCARS UI Chrome (Top and Bottom Bars)
-    render_top_bar(draw, WIDTH, debug_layout_enabled)
-    render_bottom_bar(draw, WIDTH, HEIGHT, debug_layout_enabled)
-
-    # 2. Calculate Message Area Layout
-    layout = _calculate_message_area_layout(draw)
-
+def render_event_log_content_area(draw: ImageDraw.ImageDraw, layout: dict):
+    """Renders the rolling list of messages for the Event Log mode."""
     # Draw debug bounding boxes for message columns if enabled
     if debug_layout_enabled:
         # Source column
@@ -195,49 +284,135 @@ def render_messages():
             fill=lc.DEBUG_MESSAGE_WRAP_LINE_COLOR, width=1
         )
 
-    # 3. Prepare Messages for Display
-    # Create a copy for processing, as messages_store might be updated by MQTT thread
+    # Prepare Messages for Display
     current_messages_snapshot = list(messages_store) 
     processed_message_lines = _process_messages_for_display(draw, current_messages_snapshot, layout)
 
-    # 4. Calculate how many lines fit and get the latest ones
+    # Calculate how many lines fit and get the latest ones
     lines_to_render_on_screen = []
     if layout['message_line_height'] > 0 and layout['message_area_height'] > 0:
         max_displayable_message_lines = layout['message_area_height'] // layout['message_line_height']
         if max_displayable_message_lines > 0:
             lines_to_render_on_screen = processed_message_lines[-max_displayable_message_lines:]
 
-    # 5. Draw the messages
+    # Draw the messages
     current_render_y = layout['message_area_y_start']
     for line_data in lines_to_render_on_screen:
-        # Ensure text fits vertically before drawing
-        if current_render_y + lc.BODY_FONT.size > layout['message_area_y_end']:
+        if current_render_y + lc.BODY_FONT.size > layout['message_area_y_end']: # Check using BODY_FONT.size for actual text height
             break
         
-        # Determine text color based on importance stored in line_data
         line_importance = line_data.get("importance", "info")
-        if line_importance == "control":
-            text_fill_color = lc.TEXT_COLOR_CONTROL
-        elif line_importance == "error":
-            text_fill_color = lc.TEXT_COLOR_ERROR
-        elif line_importance == "warning":
-            text_fill_color = lc.TEXT_COLOR_WARNING
-        else: # "info" and any other unspecified
-            text_fill_color = lc.TEXT_COLOR_BODY
-
+        text_fill_color = lc.TEXT_COLOR_BODY # Default
+        if line_importance == "control": text_fill_color = lc.TEXT_COLOR_CONTROL
+        elif line_importance == "error": text_fill_color = lc.TEXT_COLOR_ERROR
+        elif line_importance == "warning": text_fill_color = lc.TEXT_COLOR_WARNING
 
         if line_data["source"]:
             draw.text((layout['col_source_x'], current_render_y), line_data["source"], font=lc.BODY_FONT, fill=text_fill_color)
-
         draw.text((layout['col_message_x'], current_render_y), line_data["msg_part"], font=lc.BODY_FONT, fill=text_fill_color)
-
         if line_data["time"]:
             time_w, _ = text_size(draw, line_data["time"], lc.BODY_FONT)
-            # Align to far right edge of message area (screen minus MESSAGE_AREA_HORIZONTAL_PADDING)
             actual_time_x = WIDTH - MESSAGE_AREA_HORIZONTAL_PADDING - time_w
             draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=text_fill_color)
-
         current_render_y += layout['message_line_height']
+
+def render_clock_content_area(draw: ImageDraw.ImageDraw, layout: dict):
+    """Renders the time and date for the Clock mode."""
+    content_area_x = MESSAGE_AREA_HORIZONTAL_PADDING 
+    content_area_y = layout['message_area_y_start']
+    content_area_width = WIDTH - (2 * MESSAGE_AREA_HORIZONTAL_PADDING)
+    content_area_height = layout['message_area_height']
+
+    if content_area_width <=0 or content_area_height <=0: return
+
+    font_path = lc.BODY_FONT.path if hasattr(lc.BODY_FONT, 'path') and lc.BODY_FONT.path and os.path.exists(lc.BODY_FONT.path) else None
+    if not font_path and lc.DEFAULT_LCARS_FONT_PATH and os.path.exists(lc.DEFAULT_LCARS_FONT_PATH):
+        font_path = lc.DEFAULT_LCARS_FONT_PATH
+    if not font_path and lc.LCARS_FONT_PATH and os.path.exists(lc.LCARS_FONT_PATH):
+        font_path = lc.LCARS_FONT_PATH
+    if not font_path: # Absolute fallback if no valid path found
+        font_path = lc.FALLBACK_FONT_PATH # Assumes FALLBACK_FONT_PATH is generally available
+
+    # Time (Top 60%)
+    time_area_height = int(content_area_height * 0.6)
+    time_str = datetime.now().strftime("%H:%M:%S")
+    # Initial font size for time can be aggressive, e.g., target_height, or a large fixed number
+    time_font, time_w, time_h = _get_max_font_for_text_and_space(
+        draw, time_str, font_path, time_area_height, content_area_width, 
+        initial_font_size=max(100, int(time_area_height * 0.8)) # Start with 80% of available height
+    )
+    
+    if time_font:
+        # Center the text block (w,h) within its allocated area (time_area_height, content_area_width)
+        time_x = content_area_x + (content_area_width - time_w) // 2
+        time_y = content_area_y + (time_area_height - time_h) // 2 
+        draw.text((time_x, time_y), time_str, font=time_font, fill=lc.TEXT_COLOR_TITLE, anchor="lt") 
+        if debug_layout_enabled:
+            draw.rectangle((time_x, time_y, time_x + time_w, time_y + time_h), outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
+            draw.rectangle((content_area_x, content_area_y, content_area_x + content_area_width -1 , content_area_y + time_area_height -1), outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1)
+
+    # Date (Bottom 40%)
+    date_area_y_start = content_area_y + time_area_height
+    date_area_height = content_area_height - time_area_height
+    date_str = datetime.now().strftime("%Y-%m-%d - %A") 
+    date_font, date_w, date_h = _get_max_font_for_text_and_space(
+        draw, date_str, font_path, date_area_height, content_area_width, 
+        initial_font_size=max(40, int(date_area_height * 0.7)) # Start with 70% of available height
+    )
+
+    if date_font:
+        date_x = content_area_x + (content_area_width - date_w) // 2
+        date_y = date_area_y_start + (date_area_height - date_h) // 2
+        draw.text((date_x, date_y), date_str, font=date_font, fill=lc.TEXT_COLOR_BODY, anchor="lt")
+        if debug_layout_enabled:
+            draw.rectangle((date_x, date_y, date_x + date_w, date_y + date_h), outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
+            draw.rectangle((content_area_x, date_area_y_start, content_area_x + content_area_width -1, date_area_y_start + date_area_height -1), outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1)
+
+# ---------------------------------------------------------------------------
+# Mode-Specific Full Panel Renderers
+# ---------------------------------------------------------------------------
+def render_event_log_full_panel(img: Image.Image, draw: ImageDraw.ImageDraw):
+    """Renders the entire Event Log panel."""
+    render_top_bar(draw, WIDTH, "EVENT LOG", debug_layout_enabled)
+    
+    event_log_buttons = [
+        {'text': "CLEAR", 'color': lc.COLOR_BUTTON_CLEAR, 'id': 'btn_clear'},
+        {'text': "RELATIVE", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_relative'},
+        {'text': "CLOCK", 'color': lc.COLOR_BUTTON_CLOCK, 'id': 'btn_clock_mode'}
+    ]
+    render_bottom_bar(draw, WIDTH, HEIGHT, "MQTT STREAM", event_log_buttons, debug_layout_enabled)
+    
+    layout = _calculate_message_area_layout(draw) 
+    render_event_log_content_area(draw, layout)
+
+def render_clock_full_panel(img: Image.Image, draw: ImageDraw.ImageDraw):
+    """Renders the entire Clock panel."""
+    render_top_bar(draw, WIDTH, "CURRENT TIME", debug_layout_enabled)
+
+    timezone_str = _get_timezone_details_str()
+    clock_mode_buttons = [
+        {'text': "EVENTS", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_events_mode'} # Using RELATIVE color for now
+    ]
+    render_bottom_bar(draw, WIDTH, HEIGHT, timezone_str, clock_mode_buttons, debug_layout_enabled)
+
+    layout = _calculate_message_area_layout(draw) 
+    render_clock_content_area(draw, layout)
+
+# ---------------------------------------------------------------------------
+# Main Rendering Dispatcher
+# ---------------------------------------------------------------------------
+def refresh_display():
+    """Clears screen and renders the current mode's panel."""
+    img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
+    draw = ImageDraw.Draw(img)
+
+    if current_display_mode == "events":
+        render_event_log_full_panel(img, draw)
+    elif current_display_mode == "clock":
+        render_clock_full_panel(img, draw)
+    else: 
+        print(f"Error: Unknown display mode '{current_display_mode}'. Defaulting to Event Log.", flush=True)
+        render_event_log_full_panel(img, draw)
 
     push(img)
 
@@ -273,9 +448,9 @@ def probe(shape: str = "square", fill: bool = False):
 # ---------------------------------------------------------------------------
 messages_store = deque(maxlen=MAX_MESSAGES_IN_STORE)
 
-def on_mqtt(client, userdata, msg):
+def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
     """Handles incoming MQTT messages, including control messages."""
-    global debug_layout_enabled, log_control_messages_enabled
+    global debug_layout_enabled, log_control_messages_enabled, current_display_mode
     try:
         payload_str = msg.payload.decode(errors="ignore").strip()
         print(f"Received message on topic {msg.topic}: '{payload_str}'", flush=True)
@@ -305,30 +480,45 @@ def on_mqtt(client, userdata, msg):
                     print("Logging of control messages DISABLED", flush=True)
                 else:
                     print(f"Unknown payload for log-control: '{payload_str}'", flush=True)
-                # No immediate render needed, only affects future messages
+                # No immediate render needed for this command itself, only affects future messages
+            elif command_suffix == "mode-select":
+                if payload_str == "events":
+                    if current_display_mode != "events":
+                        current_display_mode = "events"
+                        print("Display mode switched to EVENTS", flush=True)
+                        needs_render = True
+                elif payload_str == "clock":
+                    if current_display_mode != "clock":
+                        current_display_mode = "clock"
+                        print("Display mode switched to CLOCK", flush=True)
+                        needs_render = True
+                else:
+                    print(f"Unknown payload for mode-select: '{payload_str}'", flush=True)
             else:
                 print(f"Unknown control command suffix: {command_suffix}", flush=True)
 
+            # Log the control command itself as a message if enabled
             if log_control_messages_enabled:
-                # Log the control command itself as a message if enabled
-                # Display only the payload as the message text for control messages.
-                # If payload_str is empty, text will be empty.
                 control_message_obj = Message(
-                    text=payload_str, # Use payload_str directly
+                    text=payload_str, 
                     source=f"LCARS/{command_suffix}",
-                    importance="control", # Special importance for control messages
+                    importance="control",
                     timestamp=datetime.now(),
                     topic=msg.topic
                 )
                 messages_store.append(control_message_obj)
                 print(f"Stored control message: {control_message_obj}", flush=True)
-                needs_render = True # Render if we logged it
-
-            if needs_render:
-                render_messages()
+                # If mode is events, this message will be shown, so render.
+                # If mode is clock, this message is stored but not shown immediately,
+                # but the mode switch itself (if it happened) needs a render.
+                if current_display_mode == "events": # Render if in events mode to show the logged control msg
+                    needs_render = True
+            
+            if needs_render: # This will be true if debug-layout changed, or mode changed, or if in events mode and control msg logged
+                refresh_display()
             return # Processed as control message
 
-        # Regular message processing (JSON or raw)
+        # Regular message processing (JSON or raw) for event log
         try:
             data = json.loads(payload_str)
             text_content = data.get("message")
@@ -389,7 +579,11 @@ def on_mqtt(client, userdata, msg):
         )
         messages_store.append(new_msg_obj)
         print(f"Stored new message: {new_msg_obj}", flush=True)
-        render_messages()
+        
+        # Only re-render if in events mode.
+        # Sticky messages might change this later.
+        if current_display_mode == "events":
+            refresh_display()
 
     except Exception as e:
         print(f"A critical error occurred in on_mqtt processing message from topic {msg.topic}: {e}", flush=True)
@@ -422,7 +616,7 @@ def main():
             text="This is a slightly longer debug message that should demonstrate how text wrapping might work on the display, hopefully spanning multiple lines if necessary.",
             source="Debugger", importance="info", timestamp=datetime.now(), topic="debug/long"
         ))
-        render_messages()
+        refresh_display() # Use new dispatcher
         fb.close(); sys.exit(0)
 
     # For MQTTv5, providing an empty client_id and setting protocol=mqtt.MQTTv5
@@ -454,6 +648,8 @@ def main():
     client.subscribe(control_subscription_topic)
     print(f"Subscribed to control topic: {control_subscription_topic}", flush=True)
 
+    # Initial display render after setup
+    refresh_display()
 
     def bye(*_):
         blank() # Clear screen on exit
