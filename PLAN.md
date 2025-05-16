@@ -59,28 +59,60 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
 *   [x] **`log-control` Command:**
     *   [x] Toggle logging of control messages to the main display (`"enable"`/`"disable"` payload).
 
-## Phase 4: Sticky Messages
+## Phase 4: Multi-Mode Display Implementation (Events & Clock)
+*   [ ] **Phase A: Core Refactoring for Mode Management**
+    *   [ ] **Introduce Global Mode State:**
+        *   [ ] Define `current_display_mode = "events"` in `mqtt_fb_panel.py`.
+    *   [ ] **Refactor Main Rendering Logic:**
+        *   [ ] Create `refresh_display()` in `mqtt_fb_panel.py` to check `current_display_mode` and delegate to mode-specific full panel renderers.
+        *   [ ] Update existing render triggers to call `refresh_display()`.
+    *   [ ] **Generalize UI Bar Components (`lcars_ui_components.py`):**
+        *   [ ] Modify `render_top_bar` to accept `title_text`.
+        *   [ ] Modify `render_bottom_bar` to accept `label_text` and `buttons_config` list.
+    *   [ ] **Adapt Event Log Rendering to New Structure:**
+        *   [ ] Create `render_event_log_full_panel(...)` to call generalized bars and existing message list logic.
+*   [ ] **Phase B: Implement Clock Mode Panel**
+    *   [ ] **Create Clock Panel Rendering Functions:**
+        *   [ ] `render_clock_full_panel(...)`: Calls generalized bars (title "CURRENT TIME", timezone label, "[EVENTS]" button) and `render_clock_content_area`.
+        *   [ ] `render_clock_content_area(...)`: Renders large HH:MM:SS time (60% height) and YYYY-MM-DD - DayName date (40% height), centered, with dynamically sized fonts.
+        *   [ ] Implement timezone string generation (e.g., "Europe/Warsaw - CEST - UTC+02:00") using `datetime`, `zoneinfo`, potentially `tzlocal`.
+    *   [ ] **Integrate Clock Panel into Main Rendering Flow:**
+        *   [ ] Ensure `refresh_display()` calls `render_clock_full_panel()` for "clock" mode.
+*   [ ] **Phase C: Implement Mode Switching Logic**
+    *   [ ] **MQTT Control Command Handling (`on_mqtt`):**
+        *   [ ] Handle `mode-select` topic suffix with payloads `"events"` or `"clock"`.
+        *   [ ] Update `current_display_mode` and call `refresh_display()`.
+        *   [ ] Log control message to display if enabled.
+    *   [ ] **Button Configuration for Future Touch Input:**
+        *   [ ] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
+*   [ ] **Phase D: Testing and Refinement**
+    *   [ ] Test Event Log mode functions as before.
+    *   [ ] Test Clock Mode display (time, date, timezone, updates).
+    *   [ ] Test mode switching via MQTT.
+    *   [ ] Monitor resource usage.
+    *   [ ] Code review.
+
+## Phase 5: Sticky Messages
 *   [ ] **Message Importance Handling:**
     *   [x] Ensure JSON messages can include an `importance` field ("info", "warning", "error"). (Implemented in `Message` dataclass and parsing)
     *   [x] Store this importance level with each message object. (Implemented)
-    *   [ ] Store this importance level with each message object.
 *   [ ] **Data Storage for Sticky Messages:**
     *   [ ] Decide on a strategy:
         *   Separate list for sticky messages.
         *   Attribute/flag on message objects in a single list.
-*   [ ] **Rendering Sticky Messages:**
+*   [ ] **Rendering Sticky Messages (Event Log Mode):**
     *   [ ] Sticky messages ("error", "warning") are rendered in a persistent area (e.g., top of the message list).
     *   [ ] They do not scroll off screen.
     *   [ ] The space for normal rolling messages dynamically shrinks as sticky messages accumulate.
     *   [ ] Consider distinct visual styling for sticky messages (e.g., background color, icon).
 
-## Phase 5: Clearing Mechanism
-*   [ ] **MQTT-based Clearing (Initial):**
+## Phase 6: Clearing Mechanism
+*   [ ] **MQTT-based Clearing (Sticky Messages):**
     *   [ ] Define a specific MQTT topic and message payload to trigger clearing of sticky messages (e.g., topic `home/lcars_panel/control`, payload `{"command": "clear_sticky"}`).
     *   [ ] Update `on_mqtt` to handle this command.
     *   [ ] Implement logic to remove/clear all sticky messages from the store and re-render.
 
-## Phase 6: Touchscreen Input (Advanced)
+## Phase 7: Touchscreen Input (Advanced)
 *   [ ] **Input Library Integration:**
     *   [ ] Add `python-evdev` as a dependency.
     *   [ ] Research and implement reading touch events from `/dev/input/eventX`.
@@ -89,25 +121,25 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [ ] Create a main application loop that polls for:
         *   MQTT messages (or relies on `paho-mqtt` background thread and callbacks).
         *   Touchscreen input events.
-*   [ ] **Button Definition & Handling:**
-    *   [ ] Define screen coordinates for a "clear sticky messages" button within the LCARS UI.
-    *   [ ] Render this button visually.
-    *   [ ] When a touch event occurs within the button's coordinates, trigger the clearing action for sticky messages.
+*   [ ] **Button Definition & Handling (General):**
+    *   [ ] Define screen coordinates for all interactive buttons based on their rendered positions and `buttons_config` `id`.
+    *   [ ] Implement a touch event dispatcher that maps touch coordinates to button `id`s.
+*   [ ] **Touch-based Sticky Message Clearing:**
+    *   [ ] When the "CLEAR ALERTS" button (if re-introduced for sticky only) or general "CLEAR" button is touched, trigger clearing action.
+*   [ ] **Touch-based Mode Switching:**
+    *   [ ] When "[CLOCK]" button (Event Log mode) is touched, switch to "clock" mode.
+    *   [ ] When "[EVENTS]" button (Clock mode) is touched, switch to "events" mode.
 *   [ ] **Debouncing/Event Filtering:** Implement if necessary for touch input.
 
-## Phase 7: Button Functionality & Advanced Features (New)
-*   [ ] **Implement "CLEAR" Button Logic:**
-    *   [ ] On touch (or MQTT command), clear all messages from `messages_store` (including future sticky messages).
+## Phase 8: Advanced Button Functionality (Post-Touch Implementation)
+*   [ ] **Implement "CLEAR" Button Logic (Event Log Mode):**
+    *   [ ] On touch, clear all messages from `messages_store` (including sticky messages).
     *   [ ] Re-render the display.
-*   [ ] **Implement "RELATIVE" Button Logic:**
+*   [ ] **Implement "RELATIVE" Button Logic (Event Log Mode):**
     *   [ ] Add a state variable to toggle between absolute and relative timestamps.
     *   [ ] Modify message rendering to display timestamps as "HH:MM:SS" (absolute) or "-HH:MM:SS ago" (relative).
     *   [ ] Update button visual state if possible (e.g., highlight).
-*   [ ] **Implement "CLOCK" Button Logic:**
-    *   [ ] Add a global state variable to switch between "event log" mode and "clock" mode.
-    *   [ ] Design and implement a full-screen LCARS-style clock display function.
-    *   [ ] Modify main loop/render logic to show the clock when in "clock" mode.
-    *   [ ] The "CLOCK" button (or another mechanism) should allow switching back to the event log.
+*   [ ] **Note:** The "CLOCK" button's primary function (mode switching) is covered in Phase 7 (Touchscreen Input).
 
 ## Post-Implementation
 *   [ ] **Documentation Update:**
