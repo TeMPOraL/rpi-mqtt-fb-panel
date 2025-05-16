@@ -673,13 +673,23 @@ def main():
     try:
         while True:
             if current_display_mode == "clock":
-                refresh_display() 
-            # For event mode, display is refreshed by on_mqtt or control commands
-            # For clock mode, we need to refresh every second.
-            # A more sophisticated approach might only refresh clock if it's the active mode
-            # and no other render was triggered in the last second.
-            # For now, this ensures the clock updates.
-            time.sleep(1.0) # Refresh rate for clock / main loop check
+                refresh_display()
+                
+                # Calculate dynamic sleep to align with the next second
+                now = datetime.now()
+                microseconds_to_next_second = (1_000_000 - now.microsecond) / 1_000_000.0
+                sleep_duration = microseconds_to_next_second
+                
+                # Ensure a minimum sleep if calculation/render overran the second
+                # or to prevent extremely tight loops if microseconds_to_next_second is tiny.
+                if sleep_duration <= 0.05: # e.g. if less than 50ms to next second or already past
+                    sleep_duration = 1.0 + microseconds_to_next_second # Sleep until next second + a tiny bit into it
+                
+                time.sleep(max(0.01, sleep_duration)) # Minimum 10ms sleep to yield CPU
+            else:
+                # For non-clock modes, a longer, less frequent check is fine.
+                # This prevents the loop from busy-waiting if no MQTT messages arrive.
+                time.sleep(0.5) # Check for mode changes or other events periodically
             
     except KeyboardInterrupt:
         print("KeyboardInterrupt caught in main loop.", flush=True)
