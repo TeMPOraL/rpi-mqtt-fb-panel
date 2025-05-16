@@ -21,7 +21,12 @@ class FB:
     stride: int
 
     def close(self):
-        self.mem.close(); os.close(self.fd)
+        # Close safely and mark as unavailable so later calls can detect it.
+        if self.mem and not self.mem.closed:
+            self.mem.close()
+        self.mem = None
+        if self.fd:
+            os.close(self.fd)
 
 
 def open_fb(dev: Optional[str] = None) -> FB:
@@ -50,6 +55,9 @@ WIDTH, HEIGHT = (fb.width, fb.height) if lc.ROTATE in (0, 180) else (fb.height, 
 # ---------------------------------------------------------------------------
 def push(img: Image.Image):
     """Convert PIL image to native RGB565/XRGB8888 and blit to the framebuffer."""
+    # Skip drawing if the framebuffer is already closed (e.g. second shutdown call)
+    if fb is None or getattr(fb, "mem", None) is None or getattr(fb.mem, "closed", False):
+        return
     if lc.ROTATE:
         img = img.rotate(lc.ROTATE, expand=True)
 
