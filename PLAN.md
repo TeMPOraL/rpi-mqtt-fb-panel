@@ -20,9 +20,7 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Each item in the list should be a dictionary or a simple class instance representing the parsed message (`Message` dataclass).
 
 ## Phase 2: Rolling Display & Fixed Title
-*   [x] **Fixed Title:**
-    *   [x] Add new environment variable `LCARS_TITLE_TEXT` for the fixed title (Note: UI uses hardcoded "EVENT LOG" and "MQTT STREAM" currently).
-    *   [x] Modify rendering logic to display this title (e.g., top-right aligned).
+*   [x] **Fixed Title:** (Note: UI uses hardcoded "EVENT LOG" and "MQTT STREAM" currently, `LCARS_TITLE_TEXT` env var removed as unused).
 *   [x] **Rolling Message Display:**
     *   [x] Rewrite the `render` function (`render_messages`).
     *   [x] Iterate through the stored messages (oldest first from the top, displaying most recent that fit).

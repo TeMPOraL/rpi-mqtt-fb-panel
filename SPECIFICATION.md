@@ -68,7 +68,7 @@
         *   Bar elements typically use `LCARS_ORANGE`, with buttons having specific LCARS colors (e.g., red, blue, yellow). Button labels are black.
     *   **Message Display Area:** The central portion of the screen between the top and bottom bars.
 *   **Title Bar:**
-    *   The `LCARS_TITLE_TEXT` environment variable defines a general panel title. Currently, this variable is not directly rendered on the screen; the UI uses fixed titles "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label).
+    *   The UI uses fixed titles "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label). The previously defined `LCARS_TITLE_TEXT` environment variable has been removed as it was not used for rendering.
 *   **Font:**
     *   `LCARS_FONT_PATH` (string, environment variable): Path to a `.ttf` LCARS-style font file. This font is used for titles and messages. Fallback mechanisms are in place if the specified font is not found.
     *   `TITLE_FONT` and `BODY_FONT` are used for different UI text elements.
@@ -131,7 +131,6 @@ Environment variables will be the primary method of configuration, loaded from a
 *   `MQTT_TOPIC_PREFIX`
 *   `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/alert-panel/` or `lcars/<hostname>/`)
 *   `LOG_CONTROL_MESSAGES` (boolean, e.g., `true` or `false`, defaults to `true`. Controls if messages from `MQTT_CONTROL_TOPIC_PREFIX` are displayed in the event log)
-*   `LCARS_TITLE_TEXT` (General panel title, specific bar labels like "EVENT LOG" are currently hardcoded as part of the UI components)
 *   `LCARS_FONT_PATH` (Path to the LCARS font file)
 *   `MAX_MESSAGES_IN_STORE` (Integer, maximum number of messages to keep in the rolling display buffer)
 *   `DISPLAY_ROTATE` (Controls screen rotation: 0, 90, 180, 270)
