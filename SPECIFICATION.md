@@ -12,10 +12,11 @@
 *   **Structured Message Parsing:** Processes messages formatted in JSON, allowing for richer data content. Also handles plaintext messages, deriving source from topic. (Implemented)
 *   **LCARS-Themed User Interface:** Presents information within a graphical interface inspired by Star Trek's LCARS design. (Implemented)
 *   **Rolling Message Display:** Shows a continuously updating stream of the most recent messages. (Implemented)
+*   **Multi-Mode Display:** Allows switching between different panel views, initially "Event Log" and "Clock" modes. (Not Yet Implemented)
 *   **Persistent Error/Warning Messages:** "Sticky" messages of high importance (errors, warnings) remain on screen until manually cleared. (Not Yet Implemented)
-*   **Touchscreen Interaction:** Allows clearing of persistent messages via an on-screen button (requires touchscreen). (Placeholders Implemented)
+*   **Touchscreen Interaction:** Allows clearing of persistent messages and mode switching via on-screen buttons (requires touchscreen). (Placeholders Implemented)
 *   **Configurability:** Key parameters (MQTT details, topic, title, fonts, control channel behavior) are configurable via environment variables. (Implemented)
-*   **Control Channel & Debugging:** MQTT-based control for debugging and message logging. (Implemented)
+*   **Control Channel & Debugging:** MQTT-based control for debugging, message logging, and mode switching. (Partially Implemented for mode switching)
 
 ## 3. Detailed Functionality
 
@@ -57,18 +58,60 @@
 ### 3.3. Display and User Interface (LCARS Theme)
 *   **General Layout:**
     *   Inspired by LCARS design principles: characteristic shapes (rounded ends, elbows), color palette, and typography.
-    *   The screen is structured with a top status bar, a central message display area, and a bottom control bar.
+    *   The application supports multiple display "modes" (e.g., "Event Log", "Clock"). The overall structure of top bar, central content area, and bottom bar is maintained across modes, but their specific content changes.
+    *   The screen is structured with a top status bar, a central content area, and a bottom control bar, the contents of which are determined by the active display mode.
+*   **Display Modes:**
+    *   A global state variable tracks the active display mode (e.g., `current_display_mode`).
+    *   Default mode on startup is "events".
+    *   MQTT message processing continues in the background regardless of the active mode.
+
+### 3.3.1. Event Log Mode
+*   **Functionality:** Displays a rolling list of MQTT messages. This is the default mode.
+*   **User Interface Elements:**
     *   **Top Bar:** A horizontal bar at the top of the screen.
         *   Contains a left rounded terminator `(]`, a central segment displaying the title "EVENT LOG" (using `TITLE_FONT`), and a right rounded terminator `[)`.
         *   Bar elements typically use `LCARS_ORANGE`.
     *   **Bottom Bar:** A horizontal bar at the bottom of the screen.
         *   Contains a left rounded terminator `(]`, followed by the label "MQTT STREAM" (using `TITLE_FONT`).
-        *   To the right of the label, three placeholder square buttons: `[CLEAR]`, `[RELATIVE]`, `[CLOCK]` (using `BODY_FONT` for labels, distinct background colors).
+        *   To the right of the label, three placeholder square buttons: `[CLEAR]`, `[RELATIVE]`, `[CLOCK]` (using `BODY_FONT` for labels, distinct background colors). The "[CLOCK]" button will switch to Clock Mode.
         *   The bar is completed with a right rounded terminator `[)`.
         *   Bar elements typically use `LCARS_ORANGE`, with buttons having specific LCARS colors (e.g., red, blue, yellow). Button labels are black.
-    *   **Message Display Area:** The central portion of the screen between the top and bottom bars.
-*   **Title Bar:**
-    *   The UI uses fixed titles "EVENT LOG" (top bar) and "MQTT STREAM" (bottom bar label). The previously defined `LCARS_TITLE_TEXT` environment variable has been removed as it was not used for rendering.
+    *   **Message Display Area (Central Area):** The central portion of the screen between the top and bottom bars.
+        *   Occupies the space between the top and bottom bars.
+        *   Displays a list of messages, with the most recent ones appearing at the bottom and older ones scrolling off (unless sticky).
+        *   **Message Format on Screen (3 Columns):**
+            1.  **Source Column (Left):** Displays `msg_obj.get('source', 'N/A')`. Fixed width (e.g., 20 characters or ~1/4 screen width), truncated with "..." if too long. Left-aligned.
+            2.  **Message Column (Center):** Displays `msg_obj.get('text', '')`. Uses remaining width between Source and Timestamp columns. Text is wrapped to fit. Left-aligned.
+            3.  **Timestamp Column (Right):** Displays message timestamp, formatted as `HH:MM:SS`. Right-aligned within its allocated space near the screen edge.
+        *   Messages with `importance` "warning" or "error" may have distinct visual cues (e.g., background color highlight, prefix icon) - *to be implemented with sticky messages*.
+*   **Persistent (Sticky) Messages:**
+    *   Messages marked as "warning" or "error" will become "sticky."
+    *   When a sticky message scrolls to the top of the active message display area, it will remain fixed there.
+    *   Subsequent sticky messages will accumulate below previous ones, reducing the available space for normal, scrolling "info" messages.
+
+### 3.3.2. Clock Mode
+*   **Functionality:** Displays the current time, date, and system timezone information.
+*   **User Interface Elements:**
+    *   **Top Bar:**
+        *   Uses the same LCARS styling as the Event Log mode.
+        *   Displays the title "CURRENT TIME".
+    *   **Bottom Bar:**
+        *   Uses the same LCARS styling.
+        *   Displays the current system timezone information as a label, formatted as: "FULL_ZONE_NAME - ABBREVIATION - UTC_OFFSET" (e.g., "Europe/Warsaw - CEST - UTC+02:00").
+        *   Contains a single button labeled "[EVENTS]". Pressing this button will switch to Event Log Mode.
+    *   **Central Area (Time & Date Display):**
+        *   This area occupies the entire vertical space between the top and bottom bars.
+        *   **Time Display (Upper Part):**
+            *   Occupies the top 60% of the central area's height.
+            *   Content: Current time, formatted as `HH:MM:SS`.
+            *   Font: Very large, using `lc.TEXT_COLOR_TITLE` (LCARS Orange). Font size dynamically calculated.
+            *   Alignment: Horizontally centered.
+        *   **Date Display (Lower Part):**
+            *   Occupies the bottom 40% of the central area's height.
+            *   Content: Current date, formatted as `YYYY-MM-DD - FullDayName` (e.g., "2025-05-16 - Friday").
+            *   Font: Smaller than time display, using `lc.TEXT_COLOR_BODY` or similar. Font size dynamically calculated.
+            *   Alignment: Horizontally centered.
+
 *   **Font:**
     *   `LCARS_FONT_PATH` (string, environment variable): Path to a `.ttf` LCARS-style font file. This font is used for titles and messages. Fallback mechanisms are in place if the specified font is not found.
     *   `TITLE_FONT` and `BODY_FONT` are used for different UI text elements.
@@ -89,37 +132,44 @@
     *   `DISPLAY_ROTATE` (integer, environment variable): 0, 90, 180, or 270 degrees.
 
 ### 3.4. Interaction
-*   **Touchscreen Button (Clear Sticky Messages):**
-    *   A visually distinct button element within the LCARS UI (e.g., labeled "CLEAR ALERTS").
-    *   Requires a touchscreen configured for input (e.g., via `evdev`).
-    *   Tapping this button will remove all currently displayed sticky ("warning" and "error") messages. Normal "info" messages are unaffected. This button is currently a visual placeholder.
-*   **Control Channel & Debugging (Implemented):**
-    *   **Control Topic:** The panel subscribes to a dedicated control topic prefix, configurable via `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`, where `<hostname>` is the device's hostname). MQTT topic names can contain hyphens. (Implemented)
+*   **Touchscreen Buttons:**
+    *   Buttons are visually distinct elements within the LCARS UI.
+    *   Require a touchscreen configured for input (e.g., via `evdev`).
+    *   Functionality depends on the active mode and the specific button.
+    *   All buttons are currently visual placeholders pending touch input implementation.
+*   **Control Channel & Debugging:**
+    *   **Control Topic:** The panel subscribes to a dedicated control topic prefix, configurable via `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/<hostname>/#`, where `<hostname>` is the device's hostname). (Implemented)
     *   **Control Message Display:**
-        *   Optionally, messages received on the control channel can be displayed in the main message list. This is controlled by the `LOG_CONTROL_MESSAGES` environment variable (defaults to true). (Implemented)
+        *   Optionally, messages received on the control channel can be displayed in the main message list (when in Event Log mode). This is controlled by the `LOG_CONTROL_MESSAGES` environment variable (defaults to true). (Implemented)
         *   If displayed, the message `source` will be `LCARS/<suffix>`, where `<suffix>` is the part of the topic after the control prefix. The message `text` will be the raw payload of the control message. (Implemented)
         *   These messages will have an `importance` of `"control"` and be displayed with a distinct color (e.g., `LCARS_CYAN`). (Implemented)
-    *   **Supported Control Commands (payload is the message content):** (Implemented)
-        *   Topic Suffix: `debug-layout`
+    *   **Supported Control Commands (payload is the message content):**
+        *   Topic Suffix: `debug-layout` (Implemented)
             *   Payload `"enable"`: Turns on layout debugging.
             *   Payload `"disable"` or empty string: Turns off layout debugging.
-        *   Topic Suffix: `log-control`
+        *   Topic Suffix: `log-control` (Implemented)
             *   Payload `"enable"`: Control messages will be added to the main message list.
             *   Payload `"disable"` or empty string: Control messages will not be added to the main message list.
+        *   Topic Suffix: `mode-select` (Not Yet Implemented)
+            *   Payload `"events"`: Switches the display to Event Log mode.
+            *   Payload `"clock"`: Switches the display to Clock mode.
     *   **Layout Debugging Visuals:** (Implemented)
         *   When enabled, all standard LCARS UI elements (bars, endcaps, buttons, text elements drawn by `draw_lcars_shape` and `draw_text_in_rect`) will have their bounding boxes rendered as a 1-pixel green outline.
         *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline. A blue vertical line indicates the calculated message wrapping point in the message column.
-*   **Relative Timestamp Button (`[RELATIVE]`):**
-    *   A visually distinct button element in the bottom LCARS bar, labeled "RELATIVE".
-    *   **Function (to be implemented):** Toggles the display format of timestamps in the message area.
-        *   **Absolute Mode:** Timestamps show the actual time of the event (e.g., "12:45:00").
-        *   **Relative Mode:** Timestamps show how long ago the message arrived (e.g., "-00:05:30" for 5 minutes and 30 seconds ago).
-    *   Requires touchscreen input. This button is currently a visual placeholder.
-*   **Clock Mode Button (`[CLOCK]`):**
-    *   A visually distinct button element in the bottom LCARS bar, labeled "CLOCK".
-    *   **Function (to be implemented):** Switches the entire display from the event log view to a full-screen LCARS-themed clock.
-        *   Tapping it again (or another defined interaction) would switch back to the event log view.
-    *   Requires touchscreen input. This button is currently a visual placeholder.
+*   **Event Log Mode Buttons:**
+    *   **Clear Button (`[CLEAR]`):**
+        *   Located in the bottom bar of the Event Log mode.
+        *   **Function (to be implemented):** Clears all messages (including sticky ones) from the display and internal store.
+    *   **Relative Timestamp Button (`[RELATIVE]`):**
+        *   Located in the bottom bar of the Event Log mode.
+        *   **Function (to be implemented):** Toggles the display format of timestamps in the message area between absolute (e.g., "12:45:00") and relative (e.g., "-00:05:30 ago").
+    *   **Clock Mode Button (`[CLOCK]`):**
+        *   Located in the bottom bar of the Event Log mode.
+        *   **Function (to be implemented):** Switches the display from Event Log mode to Clock mode.
+*   **Clock Mode Buttons:**
+    *   **Events Button (`[EVENTS]`):**
+        *   Located in the bottom bar of the Clock mode.
+        *   **Function (to be implemented):** Switches the display from Clock mode back to Event Log mode.
 *   **Alternative Clearing Mechanism (MQTT Command):**
     *   As a fallback or for systems without touch, a specific MQTT message can clear sticky alerts.
     *   Topic: `MQTT_TOPIC_PREFIX/control` (or similar configurable control topic).
