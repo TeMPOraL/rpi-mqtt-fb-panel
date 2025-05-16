@@ -1,9 +1,10 @@
 from PIL import ImageDraw, ImageFont
 import lcars_constants as lc
 from lcars_drawing_utils import draw_lcars_shape, draw_text_in_rect, text_size
+from typing import List, Dict, Any
 
-def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, debug_layout_enabled: bool = False):
-    """Renders the top LCARS bar with 'EVENT LOG' title."""
+def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, title_text: str, debug_layout_enabled: bool = False):
+    """Renders the top LCARS bar with a dynamic title."""
     # Left Terminator (])
     left_terminator_width = lc.BAR_HEIGHT # Width of the terminator element
     draw_lcars_shape(draw, lc.PADDING, lc.PADDING, left_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, left_round=True, debug_draw_bbox=debug_layout_enabled)

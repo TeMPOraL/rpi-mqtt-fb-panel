@@ -23,17 +23,24 @@ To move the console off the TFT (if it still appears):
 from __future__ import annotations
 import os, sys, signal, textwrap, argparse, json, socket
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
+import zoneinfo # For timezone name
+try:
+    import tzlocal # For local timezone name
+except ImportError:
+    tzlocal = None
+
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple, List
+
 
 import paho.mqtt.client as mqtt
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 # Project-specific modules
 import lcars_constants as lc
 from framebuffer_utils import fb, push, blank, WIDTH, HEIGHT
-from lcars_drawing_utils import text_size
+from lcars_drawing_utils import text_size, draw_text_in_rect # Added draw_text_in_rect for potential use
 from lcars_ui_components import render_top_bar, render_bottom_bar
 
 
