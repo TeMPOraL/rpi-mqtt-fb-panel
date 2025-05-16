@@ -4,8 +4,8 @@ from PIL import ImageFont
 # ---------------------------------------------------------------------------
 # Display Configuration
 # ---------------------------------------------------------------------------
-ROTATE       = int(os.getenv("DISPLAY_ROTATE", 0)) # 0 / 90 / 180 / 270
-BG_COLOUR    = (0, 0, 0) # Black
+ROTATE       = int(os.getenv("DISPLAY_ROTATE", 0))
+BG_COLOUR    = (0, 0, 0)
 
 # ---------------------------------------------------------------------------
 # LCARS Color Palette (TNG/VOY inspired)
@@ -27,8 +27,8 @@ TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT # Default for "info"
 TEXT_COLOR_WARNING = LCARS_YELLOW
 TEXT_COLOR_ERROR = LCARS_RED_DARK
 TEXT_COLOR_CONTROL = LCARS_CYAN
-TEXT_COLOR_BUTTON_LABEL = (0, 0, 0) # Black
-TEXT_COLOR_HIGHLIGHT = (255, 255, 255) # White
+TEXT_COLOR_BUTTON_LABEL = (0, 0, 0)
+TEXT_COLOR_HIGHLIGHT = (255, 255, 255)
 
 # ---------------------------------------------------------------------------
 # Specific UI Element Colors
@@ -38,14 +38,14 @@ COLOR_BUTTON_CLEAR = LCARS_RED_DARK
 COLOR_BUTTON_RELATIVE = LCARS_BLUE
 COLOR_BUTTON_CLOCK = LCARS_YELLOW
 
-PROBE_COLOUR = (255, 0, 255) # Magenta for probe
+PROBE_COLOUR = (255, 0, 255)
 
 # ---------------------------------------------------------------------------
 # Debug Colors
 # ---------------------------------------------------------------------------
-DEBUG_BOUNDING_BOX_UI_ELEMENT = (0, 255, 0) # Green
-DEBUG_BOUNDING_BOX_MESSAGE_COLUMN = (255, 0, 255) # Pink/Magenta
-DEBUG_MESSAGE_WRAP_LINE_COLOR = (0, 0, 255) # Blue
+DEBUG_BOUNDING_BOX_UI_ELEMENT = (0, 255, 0)
+DEBUG_BOUNDING_BOX_MESSAGE_COLUMN = (255, 0, 255)
+DEBUG_MESSAGE_WRAP_LINE_COLOR = (0, 0, 255)
 
 # ---------------------------------------------------------------------------
 # Fonts

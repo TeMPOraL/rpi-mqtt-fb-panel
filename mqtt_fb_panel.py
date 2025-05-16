@@ -25,7 +25,7 @@ import os, sys, signal, textwrap, argparse, json, socket
 from collections import deque
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional # Optional will be used by the dataclass if we add optional fields later
+from typing import Optional
 
 import paho.mqtt.client as mqtt
 from PIL import Image, ImageDraw
@@ -33,7 +33,7 @@ from PIL import Image, ImageDraw
 # Project-specific modules
 import lcars_constants as lc
 from framebuffer_utils import fb, push, blank, WIDTH, HEIGHT
-from lcars_drawing_utils import text_size # text_size is used for message rendering calculations
+from lcars_drawing_utils import text_size
 from lcars_ui_components import render_top_bar, render_bottom_bar
 
 
@@ -61,7 +61,7 @@ class Message:
     text: str
     source: str
     importance: str
-    timestamp: datetime # Store as datetime object
+    timestamp: datetime
     topic: str
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def _calculate_message_area_layout(draw: ImageDraw.ImageDraw) -> dict:
         # Estimate average as a fraction of 'M' width, smaller than 'M' itself
         layout['avg_char_width_message'] = m_char_width * 0.7
     else: # Absolute fallback if 'M' width is also zero or unavailable
-        layout['avg_char_width_message'] = max(1, lc.BODY_FONT.size * 0.5) # Ensure it's at least 1 pixel
+        layout['avg_char_width_message'] = max(1, lc.BODY_FONT.size * 0.5)
 
     # layout['col_source_width'] uses m_char_width for its estimation
     layout['col_source_width'] = int(min(WIDTH * 0.25, col_source_max_chars * m_char_width + lc.PADDING))
@@ -207,18 +207,6 @@ def render_messages():
         if current_render_y + lc.BODY_FONT.size > layout['message_area_y_end']:
             break
         
-        # Determine text color based on importance (though processed_message_lines doesn't store original importance)
-        # For now, all messages rendered here use TEXT_COLOR_BODY or TEXT_COLOR_CONTROL if we adapt it.
-        # This part needs the original message object or its importance to correctly color control messages.
-        # Let's assume for now that _process_messages_for_display will pass through an 'importance' field.
-        # This is a simplification; ideally, the original message object or its importance is available.
-        # For now, we'll just use a placeholder. The `on_mqtt` part handles setting 'control' importance.
-        # When rendering, we need to access that.
-        # A quick fix: check source prefix for "LCARS/"
-        # text_fill_color = lc.TEXT_COLOR_BODY
-        # if line_data["source"].startswith("LCARS/"): # Crude check for control message
-        #    text_fill_color = lc.TEXT_COLOR_CONTROL
-
         # Determine text color based on importance stored in line_data
         line_importance = line_data.get("importance", "info")
         if line_importance == "control":
@@ -475,8 +463,6 @@ def main():
         print(f"Critical error in MQTT loop: {e}", flush=True)
     finally:
         print("MQTT loop_forever has exited.", flush=True)
-        # client.disconnect() # Ensure client is disconnected if not already
-        # bye() # Call the cleanup handler if loop_forever exits for any reason other than SIGINT/SIGTERM
 
     print("Script main function finished.", flush=True)
 

@@ -16,7 +16,7 @@ def text_size(draw: ImageDraw.ImageDraw, txt: str, font: ImageFont.ImageFont):
 # ---------------------------------------------------------------------------
 # LCARS Drawing Helpers
 # ---------------------------------------------------------------------------
-import lcars_constants as lc # For debug colors
+import lcars_constants as lc
 
 def draw_lcars_shape(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, radius: int,
                      color_bg, left_round: bool = False, right_round: bool = False,
@@ -26,7 +26,7 @@ def draw_lcars_shape(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, 
     Radius is typically h // 2 for semi-circular ends.
     If debug_draw_bbox is True, draws a 1px green bounding box.
     """
-    if radius < 0: radius = 0 # Ensure radius is not negative
+    if radius < 0: radius = 0
 
     # If width or height is less than 2*radius, rounding might not be possible or look good.
     # Adjust radius if it's too large for the dimensions.
@@ -106,17 +106,8 @@ def draw_text_in_rect(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.Imag
     text_x = rect_x + text_x_offset # This text_x is for the left edge, not used directly by anchor below
 
     # Calculate text Y position for a baseline anchor.
-    # The goal is to center the ascent part of the font within the given rect_h,
-    # allowing descenders to hang below if necessary.
-    # font.getmetrics() returns (ascent, descent). Ascent is height above baseline.
+    # This aims to vertically center the text's ascent within the rectangle height.
     current_font_ascent, _ = font.getmetrics()
-    
-    # The y-coordinate for a baseline anchor ("ls", "ms", "rs") is the y of the baseline.
-    # To center the ascent part (height `current_font_ascent`) within `rect_h`:
-    # The top of the ascent part would be at `rect_y + (rect_h - current_font_ascent) // 2`.
-    # The baseline is `current_font_ascent` pixels below that.
-    # So, y_baseline = rect_y + (rect_h - current_font_ascent) // 2 + current_font_ascent
-    # This simplifies to:
     y_coord_for_baseline_anchor = rect_y + (rect_h + current_font_ascent) // 2
 
     # Determine horizontal anchor character and X coordinate for that anchor point.

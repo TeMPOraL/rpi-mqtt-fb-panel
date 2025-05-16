@@ -18,8 +18,7 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, debug_layout_en
     # and then draws a bar segment filling the space between the Left Terminator and the text.
 
     event_log_text = "EVENT LOG"
-    # text_size is imported from lcars_drawing_utils at the top of the file
-    event_log_text_w, _ = text_size(draw, event_log_text, lc.TITLE_FONT) # Height not needed for baseline anchor
+    event_log_text_w, _ = text_size(draw, event_log_text, lc.TITLE_FONT)
 
     # Determine X position for "EVENT LOG" text (left edge).
     # The right edge of the text should be lc.PADDING to the left of the Right Terminator's starting X.
@@ -31,7 +30,6 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, debug_layout_en
     event_log_baseline_y = lc.PADDING + lc.BAR_HEIGHT
     
     # Draw the "EVENT LOG" text directly on the background, using "ls" (left-baseline) anchor.
-    # text_x_coordinate is the calculated left edge for the text.
     # For debug drawing, we'll wrap this in draw_text_in_rect if we want its bounding box.
     # However, direct draw.text doesn't have a bbox option. For now, only elements using draw_lcars_shape or draw_text_in_rect get bboxes.
     # If precise bbox for this text is needed, it would require refactoring to use draw_text_in_rect or similar.
@@ -54,8 +52,6 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, debug_layout_en
     bar_segment_width = bar_segment_end_x - bar_segment_start_x
 
     if bar_segment_width > 0:
-        # Draw the bar segment (no rounding for this piece, it's a simple rectangle).
-        # It uses lc.PADDING as its Y coordinate and lc.BAR_HEIGHT as its height.
         draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS, debug_draw_bbox=debug_layout_enabled)
 
 def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int, debug_layout_enabled: bool = False):
@@ -99,7 +95,7 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     # Calculate total width needed for all buttons and their inter-paddings
     button_texts = ["CLEAR", "RELATIVE", "CLOCK"]
     button_colors = [lc.COLOR_BUTTON_CLEAR, lc.COLOR_BUTTON_RELATIVE, lc.COLOR_BUTTON_CLOCK]
-    button_details = [] # To store text, calculated width, color for each button
+    button_details = []
     
     required_width_for_all_buttons_and_spacing = 0
     for i, btn_text in enumerate(button_texts):
