@@ -21,17 +21,12 @@ class FB:
     stride: int
 
     def close(self):
-        # Safe to call multiple times – no errors on already-closed objects.
-        if self.mem and not getattr(self.mem, "closed", False):
+        # Close safely and mark as unavailable so later calls can detect it.
+        if self.mem and not self.mem.closed:
             self.mem.close()
         self.mem = None
-
-        if self.fd is not None:
-            try:
-                os.close(self.fd)
-            except OSError:
-                pass        # fd might have been closed earlier
-        self.fd = None
+        if self.fd:
+            os.close(self.fd)
 
 
 def open_fb(dev: Optional[str] = None) -> FB:
