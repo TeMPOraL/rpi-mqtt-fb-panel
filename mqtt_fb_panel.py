@@ -62,6 +62,9 @@ debug_layout_enabled = False
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 current_display_mode = "events" # "events" or "clock"
 
+# Guard that prevents duplicate execution of the shutdown routine.
+_exit_in_progress = False
+
 # ---------------------------------------------------------------------------
 # Message Dataclass
 # ---------------------------------------------------------------------------
@@ -332,10 +335,16 @@ def main():
     print("MQTT client loop started in background.", flush=True)
 
     def bye(*_):
+        # Ensure this logic runs only once; further calls just finish the exit.
+        global _exit_in_progress
+        if _exit_in_progress:
+            sys.exit(0)
+        _exit_in_progress = True
+
         print("Exiting...", flush=True)
-        client.loop_stop() # Stop MQTT loop
-        blank() # Clear screen on exit
-        fb.close()
+        client.loop_stop()                     # Stop MQTT network thread
+        blank()                                # Clear screen (safe if FB already closed)
+        fb.close()                             # Release framebuffer resources
         sys.exit(0)
     signal.signal(signal.SIGINT, bye)
     signal.signal(signal.SIGTERM, bye)
