@@ -677,15 +677,18 @@ def main():
                 
                 # Calculate dynamic sleep to align with the next second
                 now = datetime.now()
-                microseconds_to_next_second = (1_000_000 - now.microsecond) / 1_000_000.0
-                sleep_duration = microseconds_to_next_second
+                # Calculate delay until the very start of the next second.
+                # now.microsecond is in [0, 999999].
+                # (1_000_000 - now.microsecond) is in [1, 1_000_000] microseconds.
+                # sleep_for_alignment will be in (0.0, 1.0] seconds.
+                sleep_for_alignment = (1_000_000 - now.microsecond) / 1_000_000.0
                 
-                # Ensure a minimum sleep if calculation/render overran the second
-                # or to prevent extremely tight loops if microseconds_to_next_second is tiny.
-                if sleep_duration <= 0.05: # e.g. if less than 50ms to next second or already past
-                    sleep_duration = 1.0 + microseconds_to_next_second # Sleep until next second + a tiny bit into it
-                
-                time.sleep(max(0.01, sleep_duration)) # Minimum 10ms sleep to yield CPU
+                # Ensure a minimum sleep duration (e.g., 10ms) to yield CPU,
+                # even if the calculated alignment delay is extremely tiny.
+                # If sleep_for_alignment is 0.000001s, we'll sleep 0.01s.
+                # If sleep_for_alignment is 0.5s, we'll sleep 0.5s.
+                actual_sleep_time = max(0.01, sleep_for_alignment)
+                time.sleep(actual_sleep_time)
             else:
                 # For non-clock modes, a longer, less frequent check is fine.
                 # This prevents the loop from busy-waiting if no MQTT messages arrive.
