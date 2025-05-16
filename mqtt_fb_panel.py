@@ -21,7 +21,7 @@ To move the console off the TFT (if it still appears):
 ————————————————————————————————————————————————————————
 """
 from __future__ import annotations
-import os, sys, signal, textwrap, argparse, json, socket
+import os, sys, signal, textwrap, argparse, json, socket, time
 from collections import deque
 from datetime import datetime, timezone
 import zoneinfo # For timezone name
@@ -387,13 +387,16 @@ def render_event_log_full_panel(img: Image.Image, draw: ImageDraw.ImageDraw):
 
 def render_clock_full_panel(img: Image.Image, draw: ImageDraw.ImageDraw):
     """Renders the entire Clock panel."""
-    render_top_bar(draw, WIDTH, "CURRENT TIME", debug_layout_enabled)
+    render_top_bar(draw, WIDTH, "CURRENT TIME", debug_layout_enabled=debug_layout_enabled)
 
-    timezone_str = _get_timezone_details_str()
-    clock_mode_buttons = [
-        {'text': "EVENTS", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_events_mode'} # Using RELATIVE color for now
+    timezone_label_text = _get_timezone_details_str()
+    clock_mode_buttons_config = [
+        {'text': "EVENTS", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_events_mode'} # Using a distinct color, e.g. blue
     ]
-    render_bottom_bar(draw, WIDTH, HEIGHT, timezone_str, clock_mode_buttons, debug_layout_enabled)
+    render_bottom_bar(draw, WIDTH, HEIGHT, 
+                      label_text=timezone_label_text, 
+                      buttons_config=clock_mode_buttons_config, 
+                      debug_layout_enabled=debug_layout_enabled)
 
     layout = _calculate_message_area_layout(draw) 
     render_clock_content_area(draw, layout)
@@ -651,21 +654,39 @@ def main():
     # Initial display render after setup
     refresh_display()
 
+    # Initial display render after setup
+    refresh_display()
+
+    client.loop_start() # Start non-blocking loop
+    print("MQTT client loop started in background.", flush=True)
+
     def bye(*_):
+        print("Exiting...", flush=True)
+        client.loop_stop() # Stop MQTT loop
         blank() # Clear screen on exit
-        fb.close(); sys.exit(0)
-    signal.signal(signal.SIGINT, bye); signal.signal(signal.SIGTERM, bye)
+        fb.close()
+        sys.exit(0)
+    signal.signal(signal.SIGINT, bye)
+    signal.signal(signal.SIGTERM, bye)
 
-    print("client ready to loop", flush=True)
-
+    print("Main loop starting. Press Ctrl+C to exit.", flush=True)
     try:
-        client.loop_forever()
+        while True:
+            if current_display_mode == "clock":
+                refresh_display() 
+            # For event mode, display is refreshed by on_mqtt or control commands
+            # For clock mode, we need to refresh every second.
+            # A more sophisticated approach might only refresh clock if it's the active mode
+            # and no other render was triggered in the last second.
+            # For now, this ensures the clock updates.
+            time.sleep(1.0) # Refresh rate for clock / main loop check
+            
     except KeyboardInterrupt:
-        print("Exiting due to KeyboardInterrupt...", flush=True)
+        print("KeyboardInterrupt caught in main loop.", flush=True)
     except Exception as e:
-        print(f"Critical error in MQTT loop: {e}", flush=True)
+        print(f"Critical error in main loop: {e}", flush=True)
     finally:
-        print("MQTT loop_forever has exited.", flush=True)
+        bye()
 
     print("Script main function finished.", flush=True)
 
