@@ -256,6 +256,7 @@ def _process_touch_event():
                 if last_touch_x is not None and last_touch_y is not None:
                     # print(f"Raw touch down at: ({last_touch_x}, {last_touch_y})", flush=True)
                     logical_x, logical_y = _transform_touch_coordinates(last_touch_x, last_touch_y)
+                    print(f"Touch event: raw ({last_touch_x},{last_touch_y}), transformed ({logical_x},{logical_y})", flush=True)
                     # print(f"Transformed touch at: ({logical_x}, {logical_y})", flush=True)
 
                     for button in active_buttons:
