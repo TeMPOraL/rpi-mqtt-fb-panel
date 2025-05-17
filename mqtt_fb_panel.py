@@ -124,7 +124,7 @@ def _initialize_touch_device():
         try:
             devices = [InputDevice(path) for path in list_devices()]
             for dev_candidate in devices:
-                cap = dev_candidate.capabilities(verbose=False) # Pass verbose=False
+                cap = dev_candidate.capabilities(verbose=False)
                 if ecodes.EV_KEY in cap and ecodes.BTN_TOUCH in cap[ecodes.EV_KEY] and \
                    ecodes.EV_ABS in cap and ecodes.ABS_X in cap[ecodes.EV_ABS] and \
                    ecodes.ABS_Y in cap[ecodes.EV_ABS]:
@@ -143,7 +143,7 @@ def _initialize_touch_device():
         touch_device = InputDevice(device_path_to_try)
         print(f"Successfully opened touch device: {touch_device.name} at {device_path_to_try}", flush=True)
         # Print device capabilities for debugging (optional)
-        # print(f"Device capabilities: {touch_device.capabilities(verbose=True)}", flush=True)
+        print(f"Device capabilities: {touch_device.capabilities(verbose=True)}", flush=True)
     except Exception as e:
         print(f"Error opening touch device {device_path_to_try}: {e}. Touch input disabled.", flush=True)
         touch_device = None
