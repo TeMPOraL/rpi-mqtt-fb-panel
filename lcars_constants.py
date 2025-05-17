@@ -2,6 +2,8 @@ import os
 from PIL import ImageFont, ImageColor
 
 # Helper function to convert hex color string to RGB tuple
+# Maybe just rename it to Color, since it can actually handle not just hex-rgb format,
+# but also bunch of other formats like hsl(12,23,4), rgb(0,100%,100%), etc. or color names. AI!
 def _hex_to_rgb(hex_color_string: str) -> tuple[int, int, int]:
     """Converts a hex color string (e.g., '#RRGGBB') to an RGB tuple."""
     return ImageColor.getrgb(hex_color_string)
@@ -16,13 +18,13 @@ BG_COLOUR    = _hex_to_rgb("#000000")
 # LCARS Color Palette (TNG/VOY inspired)
 # References: https://www.thelcars.com/colors.php
 # ---------------------------------------------------------------------------
-LCARS_ORANGE = _hex_to_rgb("#FF9D00")      # Main interactive elements, bars (Original: (255, 157, 0) / TNG: #FF8800)
-LCARS_BLUE = _hex_to_rgb("#9BA2FF")        # Secondary elements, some buttons (Original: (155, 162, 255))
-LCARS_YELLOW = _hex_to_rgb("#FFCB5F")       # Accent elements, some buttons (Original: (255, 203, 95))
-LCARS_RED_DARK = _hex_to_rgb("#D47065")    # Warning/Alert buttons or accents (Original: (212, 112, 101))
-LCARS_BEIGE = _hex_to_rgb("#FFCC99")       # Often used for text or backgrounds in some schemes (Original: (255, 204, 153))
-LCARS_PURPLE_LIGHT = _hex_to_rgb("#CC99FF") # Body text, info messages (Original: (204, 153, 255))
-LCARS_CYAN = _hex_to_rgb("#66CCFF")        # Control messages or other special info (Original: (102, 204, 255))
+LCARS_ORANGE = _hex_to_rgb("#FF9D00")      # Main interactive elements, bars
+LCARS_BLUE = _hex_to_rgb("#9BA2FF")        # Secondary elements, some buttons
+LCARS_YELLOW = _hex_to_rgb("#FFCB5F")       # Accent elements, some buttons
+LCARS_RED_DARK = _hex_to_rgb("#D47065")    # Warning/Alert buttons or accents
+LCARS_BEIGE = _hex_to_rgb("#FFCC99")       # Often used for text or backgrounds in some schemes
+LCARS_PURPLE_LIGHT = _hex_to_rgb("#CC99FF") # Body text, info messages
+LCARS_CYAN = _hex_to_rgb("#66CCFF")        # Control messages or other special info
 
 
 # ---------------------------------------------------------------------------
@@ -42,14 +44,14 @@ COLOR_BUTTON_CLEAR = LCARS_RED_DARK
 COLOR_BUTTON_RELATIVE = LCARS_BLUE
 COLOR_BUTTON_CLOCK = LCARS_YELLOW
 
-PROBE_COLOUR = _hex_to_rgb("#FF00FF")
-
 # ---------------------------------------------------------------------------
 # Debug Colors
 # ---------------------------------------------------------------------------
 DEBUG_BOUNDING_BOX_UI_ELEMENT = _hex_to_rgb("#00FF00")
 DEBUG_BOUNDING_BOX_MESSAGE_COLUMN = _hex_to_rgb("#FF00FF")
 DEBUG_MESSAGE_WRAP_LINE_COLOR = _hex_to_rgb("#0000FF")
+
+PROBE_COLOUR = _hex_to_rgb("#FF00FF")
 
 # ---------------------------------------------------------------------------
 # Fonts
