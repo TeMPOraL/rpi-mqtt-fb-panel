@@ -29,6 +29,7 @@ LCARS_CYAN = _hex_to_rgb("#66CCFF")        # Control messages or other special i
 # Text Colors
 # ---------------------------------------------------------------------------
 TEXT_COLOR_TITLE = LCARS_ORANGE
+# Don't just write "default for info", make a constant for info with the same value instead AI!
 TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT # Default for "info"
 TEXT_COLOR_WARNING = LCARS_YELLOW
 TEXT_COLOR_ERROR = LCARS_RED_DARK
