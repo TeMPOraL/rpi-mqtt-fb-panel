@@ -221,26 +221,54 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                 # So, scaling should happen *before* rotation.
                 # Let's redefine: scaled_raw_x, scaled_raw_y are the inputs after scaling.
 
-                # Perform scaling first on the input raw_x, raw_y
-                scaled_input_x = (raw_x - min_x) * physical_width / (max_x - min_x)
-                scaled_input_y = (raw_y - min_y) * physical_height / (max_y - min_y)
+                # Scaling is possible, recalculate logical_x, logical_y with scaling.
+                # The raw_x, raw_y are from the touch device.
+                # min_x, max_x are range for raw_x. min_y, max_y are range for raw_y.
+                # The scaling target dimension depends on which screen axis the raw touch input
+                # will influence after the specific rotation transformation.
 
-                # Now apply the new transformation logic to scaled_input_x and scaled_input_y
                 if lc.ROTATE == 0:
-                    logical_x = physical_width - 1 - scaled_input_y
-                    logical_y = scaled_input_x
+                    # For ROTATE = 0:
+                    # logical_x = physical_width - 1 - (component from raw_y)
+                    # logical_y = (component from raw_x)
+                    # So, raw_y is scaled to physical_width, raw_x to physical_height.
+                    scaled_y_component = (raw_y - min_y) * physical_width / (max_y - min_y)
+                    scaled_x_component = (raw_x - min_x) * physical_height / (max_x - min_x)
+                    logical_x = physical_width - 1 - scaled_y_component
+                    logical_y = scaled_x_component
                 elif lc.ROTATE == 90:
-                    logical_x = scaled_input_x
-                    logical_y = scaled_input_y
+                    # For ROTATE = 90:
+                    # logical_x = (component from raw_x)
+                    # logical_y = (component from raw_y)
+                    # So, raw_x is scaled to physical_width, raw_y to physical_height.
+                    scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
+                    scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
+                    logical_x = scaled_x_component
+                    logical_y = scaled_y_component
                 elif lc.ROTATE == 180:
-                    logical_x = scaled_input_y
-                    logical_y = physical_height - 1 - scaled_input_x
+                    # For ROTATE = 180:
+                    # logical_x = (component from raw_y)
+                    # logical_y = physical_height - 1 - (component from raw_x)
+                    # So, raw_y is scaled to physical_width, raw_x to physical_height.
+                    scaled_y_component = (raw_y - min_y) * physical_width / (max_y - min_y)
+                    scaled_x_component = (raw_x - min_x) * physical_height / (max_x - min_x)
+                    logical_x = scaled_y_component
+                    logical_y = physical_height - 1 - scaled_x_component
                 elif lc.ROTATE == 270:
-                    logical_x = physical_height - 1 - scaled_input_x
-                    logical_y = physical_width - 1 - scaled_input_y
-                else: # Should not happen, but as a fallback
-                    logical_x = scaled_input_x
-                    logical_y = scaled_input_y
+                    # For ROTATE = 270:
+                    # logical_x = physical_height - 1 - (component from raw_x)
+                    # logical_y = physical_width - 1 - (component from raw_y)
+                    # So, raw_x is scaled to physical_width, raw_y to physical_height.
+                    scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
+                    scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
+                    logical_x = physical_height - 1 - scaled_x_component
+                    logical_y = physical_width - 1 - scaled_y_component
+                else: # Fallback for unknown lc.ROTATE value
+                    print(f"Warning: Unknown lc.ROTATE value {lc.ROTATE} in scaling. Defaulting to ROTATE=90 like scaling.", flush=True)
+                    scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
+                    scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
+                    logical_x = scaled_x_component
+                    logical_y = scaled_y_component
 
 
     return int(logical_x), int(logical_y)
