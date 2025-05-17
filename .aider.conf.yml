@@ -1,5 +1,12 @@
 # Always read coding conventions
 read: CONVENTIONS.md
 
-# Have AI maintain a list of extra guidelines for itself
-file: AI.md
+# AI guidelines plus extra project design and workflow files
+file:
+    - AI.md
+    - SPECIFICATION.md
+    - PLAN.md
+
+# Automated testing
+test-cmd: ./run_test_cycle.sh
+auto-test: true

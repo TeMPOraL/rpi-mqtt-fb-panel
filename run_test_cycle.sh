@@ -5,7 +5,7 @@ set -e
 
 # --- Configuration ---
 RPI_USER="temporal"
-RPI_HOST="192.168.88.11"
+RPI_HOST="192.168.88.111"
 RPI_PROJECT_DIR="~/repos/rpi-mqtt-fb-panel"
 SERVICE_NAME="mqtt-alert.service"
 
