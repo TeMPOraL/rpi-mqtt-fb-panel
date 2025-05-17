@@ -92,6 +92,13 @@ except IOError:
 PADDING = 5  # General padding
 BUTTON_PADDING_X = 10 # Horizontal padding inside buttons
 
+# Touchscreen calibration adjustment factors
+# These factors are multiplied by BAR_HEIGHT to get pixel offsets for touch calibration.
+# Error observed at screen edges, as a factor of BAR_HEIGHT.
+# E.g., 1.5 means the touch is off by 1.5 * BAR_HEIGHT pixels at the edge.
+CALIBRATION_ERROR_X_FACTOR = 1.5  # For horizontal axis
+CALIBRATION_ERROR_Y_FACTOR = 1.2  # For vertical axis
+
 # BAR_HEIGHT depends on TITLE_FONT.
 # Ensure TITLE_FONT is loaded before this calculation.
 # BAR_HEIGHT is defined as the exact pixel height of an uppercase character from TITLE_FONT.

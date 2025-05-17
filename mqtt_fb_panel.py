@@ -222,49 +222,60 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                 # Let's redefine: scaled_raw_x, scaled_raw_y are the inputs after scaling.
 
                 # Scaling is possible, recalculate logical_x, logical_y with scaling.
-                # The raw_x, raw_y are from the touch device.
-                # min_x, max_x are range for raw_x. min_y, max_y are range for raw_y.
-                # The scaling target dimension depends on which screen axis the raw touch input
-                # will influence after the specific rotation transformation.
+                # Calculate calibration error offsets in pixels
+                cal_error_x_pixels = lc.CALIBRATION_ERROR_X_FACTOR * lc.BAR_HEIGHT
+                cal_error_y_pixels = lc.CALIBRATION_ERROR_Y_FACTOR * lc.BAR_HEIGHT
+
+                # Generic scaling function applying calibration
+                def get_calibrated_scaled_value(raw_val, r_min, r_max, target_dim, cal_error_dim_pixels):
+                    # Target screen range is [cal_error_dim_pixels, target_dim - 1 - cal_error_dim_pixels]
+                    output_min = cal_error_dim_pixels
+                    output_span = (target_dim - 1) - (2 * cal_error_dim_pixels)
+
+                    if output_span <= 0: # Prevent issues if calibration error is too large or target_dim is small
+                        print(f"Warning: Touch calibration output_span ({output_span}) is not positive. Check CALIBRATION_ERROR factors and screen dimensions. Defaulting to center of target_dim.", flush=True)
+                        return (target_dim - 1) / 2.0
+                    
+                    # Scale raw_val from [r_min, r_max] to [output_min, output_min + output_span]
+                    # Ensure r_max - r_min is not zero (already checked by caller: max_x != min_x, max_y != min_y)
+                    scaled_val = ((raw_val - r_min) * output_span / (r_max - r_min)) + output_min
+                    return scaled_val
 
                 if lc.ROTATE == 0:
-                    # For ROTATE = 0:
-                    # logical_x = physical_width - 1 - (component from raw_y)
-                    # logical_y = (component from raw_x)
-                    # So, raw_y is scaled to physical_width, raw_x to physical_height.
-                    scaled_y_component = (raw_y - min_y) * physical_width / (max_y - min_y)
-                    scaled_x_component = (raw_x - min_x) * physical_height / (max_x - min_x)
-                    logical_x = physical_width - 1 - scaled_y_component
-                    logical_y = scaled_x_component
+                    # raw_y contributes to screen X-dim (target: physical_width), use cal_error_x_pixels
+                    # raw_x contributes to screen Y-dim (target: physical_height), use cal_error_y_pixels
+                    scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_width, cal_error_x_pixels)
+                    scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_height, cal_error_y_pixels)
+                    
+                    logical_x = physical_width - 1 - scaled_y_input
+                    logical_y = scaled_x_input
                 elif lc.ROTATE == 90:
-                    # For ROTATE = 90:
-                    # logical_x = (component from raw_x)
-                    # logical_y = (component from raw_y)
-                    # So, raw_x is scaled to physical_width, raw_y to physical_height.
-                    scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
-                    scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
-                    logical_x = scaled_x_component
-                    logical_y = scaled_y_component
+                    # raw_x contributes to screen X-dim (target: physical_width), use cal_error_x_pixels
+                    # raw_y contributes to screen Y-dim (target: physical_height), use cal_error_y_pixels
+                    scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_width, cal_error_x_pixels)
+                    scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_height, cal_error_y_pixels)
+
+                    logical_x = scaled_x_input
+                    logical_y = scaled_y_input
                 elif lc.ROTATE == 180:
-                    # For ROTATE = 180:
-                    # logical_x = (component from raw_y)
-                    # logical_y = physical_height - 1 - (component from raw_x)
-                    # So, raw_y is scaled to physical_width, raw_x to physical_height.
-                    scaled_y_component = (raw_y - min_y) * physical_width / (max_y - min_y)
-                    scaled_x_component = (raw_x - min_x) * physical_height / (max_x - min_x)
-                    logical_x = scaled_y_component
-                    logical_y = physical_height - 1 - scaled_x_component
+                    # raw_y contributes to screen X-dim (target: physical_width), use cal_error_x_pixels
+                    # raw_x contributes to screen Y-dim (target: physical_height), use cal_error_y_pixels
+                    scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_width, cal_error_x_pixels)
+                    scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_height, cal_error_y_pixels)
+
+                    logical_x = scaled_y_input
+                    logical_y = physical_height - 1 - scaled_x_input
                 elif lc.ROTATE == 270:
-                    # For ROTATE = 270:
-                    # logical_x = physical_height - 1 - (component from raw_x)
-                    # logical_y = physical_width - 1 - (component from raw_y)
-                    # So, raw_x is scaled to physical_width, raw_y to physical_height.
-                    scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
-                    scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
-                    logical_x = physical_height - 1 - scaled_x_component
-                    logical_y = physical_width - 1 - scaled_y_component
+                    # raw_x contributes to screen Y-dim (logical_x after transformation, target: physical_height), use cal_error_y_pixels
+                    # raw_y contributes to screen X-dim (logical_y after transformation, target: physical_width), use cal_error_x_pixels
+                    scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_height, cal_error_y_pixels)
+                    scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_width, cal_error_x_pixels)
+                    
+                    logical_x = physical_height - 1 - scaled_x_input
+                    logical_y = physical_width - 1 - scaled_y_input
                 else: # Fallback for unknown lc.ROTATE value
-                    print(f"Warning: Unknown lc.ROTATE value {lc.ROTATE} in scaling. Defaulting to ROTATE=90 like scaling.", flush=True)
+                    print(f"Warning: Unknown lc.ROTATE value {lc.ROTATE} in scaling. Defaulting to uncalibrated ROTATE=90 like scaling.", flush=True)
+                    # Fallback to simpler, uncalibrated scaling for this unknown case
                     scaled_x_component = (raw_x - min_x) * physical_width / (max_x - min_x)
                     scaled_y_component = (raw_y - min_y) * physical_height / (max_y - min_y)
                     logical_x = scaled_x_component
