@@ -60,31 +60,31 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] Toggle logging of control messages to the main display (`"enable"`/`"disable"` payload).
 
 ## Phase 4: Multi-Mode Display Implementation (Events & Clock)
-*   [ ] **Phase A: Core Refactoring for Mode Management**
-    *   [ ] **Introduce Global Mode State:**
-        *   [ ] Define `current_display_mode = "events"` in `mqtt_fb_panel.py`.
-    *   [ ] **Refactor Main Rendering Logic:**
-        *   [ ] Create `refresh_display()` in `mqtt_fb_panel.py` to check `current_display_mode` and delegate to mode-specific full panel renderers.
-        *   [ ] Update existing render triggers to call `refresh_display()`.
-    *   [ ] **Generalize UI Bar Components (`lcars_ui_components.py`):**
-        *   [ ] Modify `render_top_bar` to accept `title_text`.
-        *   [ ] Modify `render_bottom_bar` to accept `label_text` and `buttons_config` list.
-    *   [ ] **Adapt Event Log Rendering to New Structure:**
-        *   [ ] Create `render_event_log_full_panel(...)` to call generalized bars and existing message list logic.
-*   [ ] **Phase B: Implement Clock Mode Panel**
-    *   [ ] **Create Clock Panel Rendering Functions:**
-        *   [ ] `render_clock_full_panel(...)`: Calls generalized bars (title "CURRENT TIME", timezone label, "[EVENTS]" button) and `render_clock_content_area`.
-        *   [ ] `render_clock_content_area(...)`: Renders large HH:MM:SS time (60% height) and YYYY-MM-DD - DayName date (40% height), centered, with dynamically sized fonts.
-        *   [ ] Implement timezone string generation (e.g., "Europe/Warsaw - CEST - UTC+02:00") using `datetime`, `zoneinfo`, potentially `tzlocal`.
-    *   [ ] **Integrate Clock Panel into Main Rendering Flow:**
-        *   [ ] Ensure `refresh_display()` calls `render_clock_full_panel()` for "clock" mode.
-*   [ ] **Phase C: Implement Mode Switching Logic**
-    *   [ ] **MQTT Control Command Handling (`on_mqtt`):**
-        *   [ ] Handle `mode-select` topic suffix with payloads `"events"` or `"clock"`.
-        *   [ ] Update `current_display_mode` and call `refresh_display()`.
-        *   [ ] Log control message to display if enabled.
-    *   [ ] **Button Configuration for Future Touch Input:**
-        *   [ ] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
+*   [x] **Phase A: Core Refactoring for Mode Management**
+    *   [x] **Introduce Global Mode State:**
+        *   [x] Define `current_display_mode = "events"` in `mqtt_fb_panel.py`.
+    *   [x] **Refactor Main Rendering Logic:**
+        *   [x] Create `refresh_display()` in `mqtt_fb_panel.py` to check `current_display_mode` and delegate to mode-specific full panel renderers.
+        *   [x] Update existing render triggers to call `refresh_display()`.
+    *   [x] **Generalize UI Bar Components (`lcars_ui_components.py`):**
+        *   [x] Modify `render_top_bar` to accept `title_text`.
+        *   [x] Modify `render_bottom_bar` to accept `label_text` and `buttons_config` list.
+    *   [x] **Adapt Event Log Rendering to New Structure:**
+        *   [x] Create `render_event_log_full_panel(...)` to call generalized bars and existing message list logic.
+*   [x] **Phase B: Implement Clock Mode Panel**
+    *   [x] **Create Clock Panel Rendering Functions:**
+        *   [x] `render_clock_full_panel(...)`: Calls generalized bars (title "CURRENT TIME", timezone label, "[EVENTS]" button) and `render_clock_content_area`.
+        *   [x] `render_clock_content_area(...)`: Renders large HH:MM:SS time (60% height) and YYYY-MM-DD - DayName date (40% height), centered, with dynamically sized fonts.
+        *   [x] Implement timezone string generation (e.g., "Europe/Warsaw - CEST - UTC+02:00") using `datetime`, `zoneinfo`, potentially `tzlocal`.
+    *   [x] **Integrate Clock Panel into Main Rendering Flow:**
+        *   [x] Ensure `refresh_display()` calls `render_clock_full_panel()` for "clock" mode.
+*   [x] **Phase C: Implement Mode Switching Logic**
+    *   [x] **MQTT Control Command Handling (`on_mqtt`):**
+        *   [x] Handle `mode-select` topic suffix with payloads `"events"` or `"clock"`.
+        *   [x] Update `current_display_mode` and call `refresh_display()`.
+        *   [x] Log control message to display if enabled.
+    *   [x] **Button Configuration for Future Touch Input:**
+        *   [x] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
 *   [ ] **Phase D: Testing and Refinement**
     *   [ ] Test Event Log mode functions as before.
     *   [ ] Test Clock Mode display (time, date, timezone, updates).
