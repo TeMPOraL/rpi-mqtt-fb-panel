@@ -11,6 +11,7 @@ BG_COLOUR    = (0, 0, 0)
 # LCARS Color Palette (TNG/VOY inspired)
 # References: https://www.thelcars.com/colors.php
 # ---------------------------------------------------------------------------
+# AI if there's a way to encode those colors using a syntax like #FF9D00 or rgb(255, 157, 0) without changing semantics AI?
 LCARS_ORANGE = (255, 157, 0)      # Main interactive elements, bars (#FF9D00 / TNG: #FF8800)
 LCARS_BLUE = (155, 162, 255)        # Secondary elements, some buttons (#9BA2FF)
 LCARS_YELLOW = (255, 203, 95)       # Accent elements, some buttons (#FFCB5F)
@@ -18,6 +19,7 @@ LCARS_RED_DARK = (212, 112, 101)    # Warning/Alert buttons or accents (#D47065)
 LCARS_BEIGE = (255, 204, 153)       # Often used for text or backgrounds in some schemes (#FFCC99)
 LCARS_PURPLE_LIGHT = (204, 153, 255) # Body text, info messages (#CC99FF)
 LCARS_CYAN = (102, 204, 255)        # Control messages or other special info (#66CCFF)
+
 
 # ---------------------------------------------------------------------------
 # Text Colors
