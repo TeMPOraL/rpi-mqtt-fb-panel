@@ -149,7 +149,7 @@ def render_clock_content_area(draw, layout, debug_layout_enabled):
             draw.rectangle((date_x, date_y, date_x + date_w, date_y + date_h), outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
             draw.rectangle((content_area_x, date_area_y_start, content_area_x + content_area_width -1, date_area_y_start + date_area_height -1), outline=lc.DEBUG_BOUNDING_BOX_MESSAGE_COLUMN, width=1)
 
-def render_clock_full_panel(img, draw, debug_layout_enabled):
+def render_clock_full_panel(img, draw, active_buttons_list: List[Dict[str, Any]], debug_layout_enabled):
     render_top_bar(draw, WIDTH, "CURRENT TIME", debug_layout_enabled=debug_layout_enabled)
 
     timezone_label_text = _get_timezone_details_str()
@@ -159,6 +159,7 @@ def render_clock_full_panel(img, draw, debug_layout_enabled):
     render_bottom_bar(draw, WIDTH, HEIGHT,
                       label_text=timezone_label_text,
                       buttons_config=clock_mode_buttons_config,
+                      active_buttons_list=active_buttons_list,
                       debug_layout_enabled=debug_layout_enabled)
 
     layout = _calculate_message_area_layout(draw)

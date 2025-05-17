@@ -137,15 +137,15 @@ def render_event_log_content_area(draw, layout, messages_store, debug_layout_ena
             draw.text((actual_time_x, current_render_y), line_data["time"], font=lc.BODY_FONT, fill=text_fill_color)
         current_render_y += layout['message_line_height']
 
-def render_event_log_full_panel(img, draw, messages_store, debug_layout_enabled):
+def render_event_log_full_panel(img, draw, messages_store, active_buttons_list: List[Dict[str, Any]], debug_layout_enabled):
     render_top_bar(draw, WIDTH, "EVENT LOG", debug_layout_enabled)
 
     event_log_buttons = [
         {'text': "CLEAR", 'color': lc.COLOR_BUTTON_CLEAR, 'id': 'btn_clear'},
-        {'text': "RELATIVE", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_relative'},
+        {'text': "RELATIVE", 'color': lc.COLOR_BUTTON_RELATIVE, 'id': 'btn_relative'}, # Relative button not implemented yet
         {'text': "CLOCK", 'color': lc.COLOR_BUTTON_CLOCK, 'id': 'btn_clock_mode'}
     ]
-    render_bottom_bar(draw, WIDTH, HEIGHT, "MQTT STREAM", event_log_buttons, debug_layout_enabled)
+    render_bottom_bar(draw, WIDTH, HEIGHT, "MQTT STREAM", event_log_buttons, active_buttons_list, debug_layout_enabled)
 
     layout = _calculate_message_area_layout(draw)
     render_event_log_content_area(draw, layout, messages_store, debug_layout_enabled)

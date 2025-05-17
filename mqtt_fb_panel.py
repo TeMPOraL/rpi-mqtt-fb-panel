@@ -37,9 +37,19 @@ from typing import Optional, Dict, Any, Tuple, List
 import paho.mqtt.client as mqtt
 from PIL import Image, ImageDraw, ImageFont
 
+try:
+    from evdev import InputDevice, categorize, ecodes, list_devices
+except ImportError:
+    print("Warning: python-evdev library not found. Touch input will be disabled.", flush=True)
+    InputDevice = None
+    categorize = None
+    ecodes = None
+    list_devices = None
+
+
 # Project-specific modules
 import lcars_constants as lc
-from framebuffer_utils import fb, push, blank, WIDTH, HEIGHT
+from framebuffer_utils import fb, push, blank, WIDTH, HEIGHT # fb object needed for screen dimensions
 from lcars_ui_components import render_top_bar, render_bottom_bar
 from event_log_mode import render_event_log_full_panel
 from clock_mode import render_clock_full_panel
@@ -53,14 +63,19 @@ MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
 MQTT_CONTROL_TOPIC_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", f"lcars/{HOSTNAME}/").replace("<hostname>", HOSTNAME)
 LOG_CONTROL_MESSAGES_STR = os.getenv("LOG_CONTROL_MESSAGES", "true").lower()
 LOG_CONTROL_MESSAGES = LOG_CONTROL_MESSAGES_STR == "true"
+TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
 
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
 
-# Global application state
-debug_layout_enabled = False
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 current_display_mode = "events" # "events" or "clock"
+active_buttons: List[Dict[str, Any]] = [] # Stores {'id': str, 'rect': (x1,y1,x2,y2)}
+
+# Touch input handling
+touch_device: Optional[InputDevice] = None
+last_touch_x: Optional[int] = None
+last_touch_y: Optional[int] = None
 
 # Guard that prevents duplicate execution of the shutdown routine.
 _exit_in_progress = False
@@ -82,16 +97,176 @@ class Message:
 def refresh_display():
     img = Image.new("RGB", (WIDTH, HEIGHT), lc.BG_COLOUR)
     draw = ImageDraw.Draw(img)
+    active_buttons.clear() # Clear buttons before redrawing UI
 
     if current_display_mode == "events":
-        render_event_log_full_panel(img, draw, messages_store, debug_layout_enabled)
+        render_event_log_full_panel(img, draw, messages_store, active_buttons, debug_layout_enabled)
     elif current_display_mode == "clock":
-        render_clock_full_panel(img, draw, debug_layout_enabled)
+        render_clock_full_panel(img, draw, active_buttons, debug_layout_enabled)
     else:
         print(f"Error: Unknown display mode '{current_display_mode}'. Defaulting to Event Log.", flush=True)
-        render_event_log_full_panel(img, draw, messages_store, debug_layout_enabled)
+        render_event_log_full_panel(img, draw, messages_store, active_buttons, debug_layout_enabled)
 
     push(img)
+
+# ---------------------------------------------------------------------------
+# Touch Input Handling
+# ---------------------------------------------------------------------------
+def _initialize_touch_device():
+    global touch_device
+    if not InputDevice: # evdev not imported
+        return
+
+    device_path_to_try = TOUCH_DEVICE_PATH
+    if not device_path_to_try:
+        print("TOUCH_DEVICE_PATH not set. Attempting to auto-detect touch device...", flush=True)
+        try:
+            devices = [InputDevice(path) for path in list_devices()]
+            for dev_candidate in devices:
+                cap = dev_candidate.capabilities(verbose=False) # Pass verbose=False
+                if ecodes.EV_KEY in cap and ecodes.BTN_TOUCH in cap[ecodes.EV_KEY] and \
+                   ecodes.EV_ABS in cap and ecodes.ABS_X in cap[ecodes.EV_ABS] and \
+                   ecodes.ABS_Y in cap[ecodes.EV_ABS]:
+                    device_path_to_try = dev_candidate.path
+                    print(f"Auto-detected touch device: {dev_candidate.name} at {device_path_to_try}", flush=True)
+                    break
+            if not device_path_to_try:
+                print("Could not auto-detect a touch device. Touch input disabled.", flush=True)
+                return
+        except Exception as e:
+            print(f"Error during touch device auto-detection: {e}. Touch input disabled.", flush=True)
+            return
+
+
+    try:
+        touch_device = InputDevice(device_path_to_try)
+        print(f"Successfully opened touch device: {touch_device.name} at {device_path_to_try}", flush=True)
+        # Print device capabilities for debugging (optional)
+        # print(f"Device capabilities: {touch_device.capabilities(verbose=True)}", flush=True)
+    except Exception as e:
+        print(f"Error opening touch device {device_path_to_try}: {e}. Touch input disabled.", flush=True)
+        touch_device = None
+
+def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
+    """Transforms raw touch coordinates to logical screen coordinates based on rotation."""
+    # fb.width and fb.height are the physical dimensions of the framebuffer (xres, yres)
+    physical_width = fb.width
+    physical_height = fb.height
+
+    logical_x, logical_y = raw_x, raw_y
+
+    if lc.ROTATE == 0:
+        logical_x = raw_x
+        logical_y = raw_y
+    elif lc.ROTATE == 90:
+        logical_x = raw_y
+        logical_y = physical_width - 1 - raw_x
+    elif lc.ROTATE == 180:
+        logical_x = physical_width - 1 - raw_x
+        logical_y = physical_height - 1 - raw_y
+    elif lc.ROTATE == 270:
+        logical_x = physical_height - 1 - raw_y
+        logical_y = raw_x
+    
+    # Scaling if touch device coordinates are different from screen pixels
+    if touch_device and ecodes.EV_ABS in touch_device.capabilities():
+        abs_info_x = touch_device.capabilities()[ecodes.EV_ABS].get(ecodes.ABS_X)
+        abs_info_y = touch_device.capabilities()[ecodes.EV_ABS].get(ecodes.ABS_Y)
+
+        if abs_info_x and abs_info_y:
+            min_x, max_x = abs_info_x.min, abs_info_x.max
+            min_y, max_y = abs_info_y.min, abs_info_y.max
+
+            # Prevent division by zero if min == max
+            if max_x == min_x or max_y == min_y:
+                 # Cannot scale, assume 1:1 or log error
+                print("Warning: Touch device reports min == max for X or Y axis. Cannot scale coordinates.", flush=True)
+            else:
+                # Use the original raw_x, raw_y for scaling calculation
+                # before rotation transformation was applied to them as logical_x, logical_y
+                # This is a bit tricky. The raw_x, raw_y are inputs to this function.
+                # The rotation logic above assumes raw_x, raw_y are already in physical pixel space.
+                # So, scaling should happen *before* rotation.
+                # Let's redefine: scaled_raw_x, scaled_raw_y are the inputs after scaling.
+                
+                # Perform scaling first on the input raw_x, raw_y
+                scaled_input_x = (raw_x - min_x) * physical_width / (max_x - min_x)
+                scaled_input_y = (raw_y - min_y) * physical_height / (max_y - min_y)
+
+                # Now apply rotation logic to scaled_input_x and scaled_input_y
+                if lc.ROTATE == 0:
+                    logical_x = scaled_input_x
+                    logical_y = scaled_input_y
+                elif lc.ROTATE == 90:
+                    logical_x = scaled_input_y # raw_y scaled
+                    logical_y = physical_width - 1 - scaled_input_x # raw_x scaled
+                elif lc.ROTATE == 180:
+                    logical_x = physical_width - 1 - scaled_input_x
+                    logical_y = physical_height - 1 - scaled_input_y
+                elif lc.ROTATE == 270:
+                    logical_x = physical_height - 1 - scaled_input_y
+                    logical_y = scaled_input_x
+    
+    return int(logical_x), int(logical_y)
+
+
+def _handle_button_press(button_id: str):
+    global current_display_mode
+    print(f"Button pressed: {button_id}", flush=True)
+    action_taken = False
+
+    if button_id == 'btn_clear' and current_display_mode == "events":
+        messages_store.clear()
+        print("Event log CLEARED by touch", flush=True)
+        action_taken = True
+    elif button_id == 'btn_clock_mode' and current_display_mode == "events":
+        current_display_mode = "clock"
+        print("Switched to CLOCK mode by touch", flush=True)
+        action_taken = True
+    elif button_id == 'btn_events_mode' and current_display_mode == "clock":
+        current_display_mode = "events"
+        print("Switched to EVENTS mode by touch", flush=True)
+        action_taken = True
+    # Add other button IDs here if needed, e.g. 'btn_relative'
+
+    if action_taken:
+        refresh_display()
+
+def _process_touch_event():
+    global last_touch_x, last_touch_y
+    if not touch_device or not ecodes:
+        return
+
+    try:
+        # Read all immediately available events
+        for event in touch_device.read_loop_async(): # Use read_loop_async for non-blocking
+            # print(f"Touch event: {categorize(event)}", flush=True) # Very verbose
+            if event.type == ecodes.EV_ABS:
+                if event.code == ecodes.ABS_X:
+                    last_touch_x = event.value
+                elif event.code == ecodes.ABS_Y:
+                    last_touch_y = event.value
+            elif event.type == ecodes.EV_KEY and event.code == ecodes.BTN_TOUCH and event.value == 1: # Touch down (press)
+                if last_touch_x is not None and last_touch_y is not None:
+                    # print(f"Raw touch down at: ({last_touch_x}, {last_touch_y})", flush=True)
+                    logical_x, logical_y = _transform_touch_coordinates(last_touch_x, last_touch_y)
+                    # print(f"Transformed touch at: ({logical_x}, {logical_y})", flush=True)
+                    
+                    for button in active_buttons:
+                        x1, y1, x2, y2 = button['rect']
+                        if x1 <= logical_x <= x2 and y1 <= logical_y <= y2:
+                            _handle_button_press(button['id'])
+                            # It's possible BTN_TOUCH release (value 0) or other EV_ABS events might follow.
+                            # For simple tap, acting on press is usually fine.
+                            # Consider clearing last_touch_x/y on BTN_TOUCH release if needed.
+                            break # Found a button, no need to check others for this press event
+    except BlockingIOError:
+        # This exception should not occur with read_loop_async, but good to have if using read_one()
+        pass # No event available, which is normal for non-blocking read_one()
+    except Exception as e:
+        print(f"Error reading from touch device: {e}", flush=True)
+        # Consider re-initializing or disabling touch if errors persist
+        # For now, just log and continue.
 
 # ---------------------------------------------------------------------------
 # Probe graphics
@@ -284,6 +459,9 @@ def main():
     if args.probe:
         probe(args.probe, args.fill)
         fb.close(); sys.exit(0)
+
+    _initialize_touch_device() # Initialize touch device early
+
     if args.debug:
         # Populate with sample messages for debug mode using the Message dataclass
         messages_store.append(Message(
@@ -347,8 +525,15 @@ def main():
         _exit_in_progress = True
 
         print("Exiting...", flush=True)
-        client.loop_stop()                     # Stop MQTT network thread
+        if client and client.is_connected():
+            client.loop_stop()                     # Stop MQTT network thread
         blank()                                # Clear screen (safe if FB already closed)
+        if touch_device:
+            try:
+                touch_device.close()
+                print("Touch device closed.", flush=True)
+            except Exception as e:
+                print(f"Error closing touch device: {e}", flush=True)
         fb.close()                             # Release framebuffer resources
         sys.exit(0)
     signal.signal(signal.SIGINT, bye)
@@ -356,28 +541,23 @@ def main():
 
     print("Main loop starting. Press Ctrl+C to exit.", flush=True)
     try:
-        while True:
+        while not _exit_in_progress: # Check _exit_in_progress flag
+            _process_touch_event() # Check for touch events first
+
             if current_display_mode == "clock":
-                refresh_display()
+                # Clock mode updates itself based on time, so refresh frequently
+                refresh_display() # This clears and repopulates active_buttons
                 
-                # Calculate dynamic sleep to align with the next second
                 now = datetime.now()
-                # Calculate delay until the very start of the next second.
-                # now.microsecond is in [0, 999999].
-                # (1_000_000 - now.microsecond) is in [1, 1_000_000] microseconds.
-                # sleep_for_alignment will be in (0.0, 1.0] seconds.
                 sleep_for_alignment = (1_000_000 - now.microsecond) / 1_000_000.0
-                
-                # Ensure a minimum sleep duration (e.g., 10ms) to yield CPU,
-                # even if the calculated alignment delay is extremely tiny.
-                # If sleep_for_alignment is 0.000001s, we'll sleep 0.01s.
-                # If sleep_for_alignment is 0.5s, we'll sleep 0.5s.
-                actual_sleep_time = max(0.01, sleep_for_alignment)
+                actual_sleep_time = max(0.01, sleep_for_alignment) # Min 10ms sleep
                 time.sleep(actual_sleep_time)
             else:
-                # For non-clock modes, a longer, less frequent check is fine.
-                # This prevents the loop from busy-waiting if no MQTT messages arrive.
-                time.sleep(0.5) # Check for mode changes or other events periodically
+                # Event log mode only needs to refresh on new messages (handled by on_mqtt)
+                # or touch events (handled by _process_touch_event -> _handle_button_press -> refresh_display).
+                # So, just sleep for a bit to yield CPU and allow touch/MQTT to be processed.
+                # A short sleep allows responsiveness to touch.
+                time.sleep(0.05) # 50ms sleep, adjust as needed for responsiveness vs CPU usage
             
     except KeyboardInterrupt:
         print("KeyboardInterrupt caught in main loop.", flush=True)

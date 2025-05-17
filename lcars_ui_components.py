@@ -53,10 +53,11 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, title_text: str
     if bar_segment_width > 0:
         draw_lcars_shape(draw, bar_segment_start_x, lc.PADDING, bar_segment_width, lc.BAR_HEIGHT, 0, lc.COLOR_BARS, debug_draw_bbox=debug_layout_enabled)
 
-def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int, 
-                      label_text: str, buttons_config: List[Dict[str, Any]], 
+def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_height: int,
+                      label_text: str, buttons_config: List[Dict[str, Any]],
+                      active_buttons_list: List[Dict[str, Any]], # New parameter
                       debug_layout_enabled: bool = False):
-    """Renders the bottom LCARS bar with a dynamic label and buttons."""
+    """Renders the bottom LCARS bar, storing button coordinates."""
     BOTTOM_BAR_Y = screen_height - lc.PADDING - lc.BAR_HEIGHT
     left_terminator_width = lc.BAR_HEIGHT # Same as top bar
 
@@ -104,10 +105,10 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
             btn_w, _ = text_size(draw, btn_text, lc.BODY_FONT)
             button_render_width = btn_w + (2 * lc.BUTTON_PADDING_X)
             button_details.append({
-                'text': btn_text, 
-                'width': button_render_width, 
-                'color': button_spec['color'] # Store color from spec
-                # 'id': button_spec.get('id') # Can be carried over if needed later
+                'text': btn_text,
+                'width': button_render_width,
+                'color': button_spec['color'], # Store color from spec
+                'id': button_spec.get('id') # Carry over ID
             })
             required_width_for_all_buttons_and_spacing += button_render_width
             if i < len(buttons_config) - 1: # Add inter-button padding
@@ -133,15 +134,25 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     # Only draw buttons if the calculated start position for the group is sensible
     # (i.e., doesn't overlap with elements to its left like the MQTT STREAM text area)
     actual_button_draw_x = buttons_group_start_x
-    if actual_button_draw_x >= current_x : # Check if there's space for buttons after MQTT text and potential fill bar
+    if actual_button_draw_x >= current_x:  # Check if there's space for buttons
         for i, detail in enumerate(button_details):
-            # This check ensures we don't try to draw buttons if the group itself wouldn't fit.
-            # Individual button fitting within the group space is implicitly handled by prior width calculation.
-            draw_lcars_shape(draw, actual_button_draw_x, BOTTOM_BAR_Y, detail['width'], lc.BAR_HEIGHT, 0, detail['color'], debug_draw_bbox=debug_layout_enabled)
+            button_x1 = actual_button_draw_x
+            button_y1 = BOTTOM_BAR_Y
+            button_x2 = actual_button_draw_x + detail['width']
+            button_y2 = BOTTOM_BAR_Y + lc.BAR_HEIGHT
+
+            draw_lcars_shape(draw, button_x1, button_y1, detail['width'], lc.BAR_HEIGHT, 0, detail['color'], debug_draw_bbox=debug_layout_enabled)
             draw_text_in_rect(draw, detail['text'], lc.BODY_FONT,
-                              actual_button_draw_x, BOTTOM_BAR_Y, detail['width'], lc.BAR_HEIGHT,
+                              button_x1, button_y1, detail['width'], lc.BAR_HEIGHT,
                               lc.TEXT_COLOR_BUTTON_LABEL, align="right", padding_x=lc.BUTTON_PADDING_X,
-                              debug_draw_bbox=debug_layout_enabled) # Pass debug flag
+                              debug_draw_bbox=debug_layout_enabled)
+
+            if detail.get('id'): # Store button rect if ID exists
+                active_buttons_list.append({
+                    'id': detail['id'],
+                    'rect': (button_x1, button_y1, button_x2, button_y2)
+                })
+
             actual_button_draw_x += detail['width']
             if i < len(button_details) - 1:
                 actual_button_draw_x += lc.PADDING

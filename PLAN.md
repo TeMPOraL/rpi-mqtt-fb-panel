@@ -85,7 +85,7 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
         *   [x] Log control message to display if enabled.
     *   [x] **Button Configuration for Future Touch Input:**
         *   [x] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
-*   [ ] **Phase D: Testing and Refinement**
+*   [x] **Phase D: Testing and Refinement**
     *   [x] Test Event Log mode functions as before.
     *   [x] Test Clock Mode display (time, date, timezone, updates).
     *   [x] Test mode switching via MQTT.
@@ -116,28 +116,26 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [ ] Update `on_mqtt` to handle this command.
     *   [ ] Implement logic to remove/clear only sticky messages from the store and re-render.
 
-## Phase 7: Touchscreen Input (Advanced)
-*   [ ] **Input Library Integration:**
-    *   [ ] Add `python-evdev` as a dependency.
-    *   [ ] Research and implement reading touch events from `/dev/input/eventX`.
-*   [ ] **Event Loop Modification:**
-    *   [ ] Change `client.loop_forever()` to `client.loop_start()`.
-    *   [ ] Create a main application loop that polls for:
-        *   MQTT messages (or relies on `paho-mqtt` background thread and callbacks).
-        *   Touchscreen input events.
-*   [ ] **Button Definition & Handling (General):**
-    *   [ ] Define screen coordinates for all interactive buttons based on their rendered positions and `buttons_config` `id`.
-    *   [ ] Implement a touch event dispatcher that maps touch coordinates to button `id`s.
-*   [ ] **Touch-based Sticky Message Clearing:**
-    *   [ ] When the "CLEAR ALERTS" button (if re-introduced for sticky only) or general "CLEAR" button is touched, trigger clearing action.
-*   [ ] **Touch-based Mode Switching:**
-    *   [ ] When "[CLOCK]" button (Event Log mode) is touched, switch to "clock" mode.
-    *   [ ] When "[EVENTS]" button (Clock mode) is touched, switch to "events" mode.
-*   [ ] **Debouncing/Event Filtering:** Implement if necessary for touch input.
+## Phase 7: Touchscreen Input (Implemented for Core Buttons)
+*   [x] **Input Library Integration:**
+    *   [x] Added `python-evdev` dependency (user prompted to install).
+    *   [x] Implemented reading touch events from `TOUCH_DEVICE_PATH` (configurable via env var, with auto-detect fallback).
+*   [x] **Event Loop Modification:**
+    *   [x] `client.loop_start()` is already used.
+    *   [x] Main application loop modified to poll for touch events using non-blocking `read_loop_async`.
+*   [x] **Button Definition & Handling (General):**
+    *   [x] `active_buttons` list stores screen coordinates and `id`s, populated during rendering.
+    *   [x] Touch event dispatcher maps transformed touch coordinates (handles `DISPLAY_ROTATE` and touch device scaling) to button `id`s.
+*   [x] **Touch-based Mode Switching & Clearing:**
+    *   [x] When "CLEAR" button (Event Log mode) is touched, clears all messages from `messages_store`.
+    *   [x] When "[CLOCK]" button (Event Log mode) is touched, switches to "clock" mode.
+    *   [x] When "[EVENTS]" button (Clock mode) is touched, switches to "events" mode.
+*   [ ] **Touch-based Sticky Message Clearing:** (Part of general "CLEAR" for now, specific sticky clear not implemented)
+*   [ ] **Debouncing/Event Filtering:** Basic implementation (acts on `BTN_TOUCH` down event). Further refinement might be needed if issues arise.
 
 ## Phase 8: Advanced Button Functionality (Post-Touch Implementation)
-*   [ ] **Implement "CLEAR" Button Logic (Event Log Mode):**
-    *   [ ] On touch, clear all messages from `messages_store` (including sticky messages).
+*   [x] **Implement "CLEAR" Button Logic (Event Log Mode):** (Covered in Phase 7)
+    *   [x] On touch, clear all messages from `messages_store` (including sticky messages).
     *   [ ] Re-render the display.
 *   [ ] **Implement "RELATIVE" Button Logic (Event Log Mode):**
     *   [ ] Add a state variable to toggle between absolute and relative timestamps.
