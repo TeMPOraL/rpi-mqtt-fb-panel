@@ -124,7 +124,7 @@ send_lcars_command_on_rpi "mode-select" "clock"
 echo "[TEST SCRIPT] MQTT message sent via RPi."
 
 # 5. Check logs after MQTT messages and mode switch command
-echo "[TEST SCRIPT] Step 5: Checking logs after sending MQTT message..."
+echo "[TEST SCRIPT] Step 5: Checking logs after sending test messages and mode switch command..."
 # We use the timestamp from before the MQTT message, as the app might log immediately upon receiving it.
 check_rpi_logs "$current_rpi_time_utc_step4"
 
