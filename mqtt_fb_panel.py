@@ -228,16 +228,28 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
 
                 # Generic scaling function applying calibration
                 def get_calibrated_scaled_value(raw_val, r_min, r_max, target_dim, cal_error_dim_pixels):
-                    # Target screen range is [cal_error_dim_pixels, target_dim - 1 - cal_error_dim_pixels]
-                    output_min = cal_error_dim_pixels
-                    output_span = (target_dim - 1) - (2 * cal_error_dim_pixels)
+                    E = cal_error_dim_pixels
+                    D_minus_1 = target_dim - 1 # Screen dimension span (e.g., width-1 or height-1)
 
-                    if output_span <= 0: # Prevent issues if calibration error is too large or target_dim is small
-                        print(f"Warning: Touch calibration output_span ({output_span}) is not positive. Check CALIBRATION_ERROR factors and screen dimensions. Defaulting to center of target_dim.", flush=True)
-                        return (target_dim - 1) / 2.0
+                    # Denominator for the correction terms
+                    denominator = D_minus_1 - (2 * E)
+
+                    if denominator <= 0:
+                        print(f"Warning: Touch calibration denominator ({denominator}) is not positive. Errors might be too large for this calibration model or screen dim too small. Check CALIBRATION_ERROR factors. Falling back to uncalibrated.", flush=True)
+                        # Fallback to simple uncalibrated scaling
+                        if (r_max - r_min) == 0: return D_minus_1 / 2.0 # Avoid div by zero if raw range is also zero
+                        return (raw_val - r_min) * D_minus_1 / (r_max - r_min)
+
+                    # Corrected output_min and output_span
+                    # These are the target values that, when perceived with the error, should result in the ideal mapping.
+                    output_min = -E * D_minus_1 / denominator
+                    output_span = D_minus_1**2 / denominator
                     
-                    # Scale raw_val from [r_min, r_max] to [output_min, output_min + output_span]
-                    # Ensure r_max - r_min is not zero (already checked by caller: max_x != min_x, max_y != min_y)
+                    # The rest of the scaling logic remains the same, using these corrected min/span
+                    if (r_max - r_min) == 0: # Should have been caught by caller, but defensive check
+                        print("Warning: Raw touch range (r_max - r_min) is zero in get_calibrated_scaled_value.", flush=True)
+                        return output_min + output_span / 2.0 # Return midpoint of corrected target
+
                     scaled_val = ((raw_val - r_min) * output_span / (r_max - r_min)) + output_min
                     return scaled_val
 
