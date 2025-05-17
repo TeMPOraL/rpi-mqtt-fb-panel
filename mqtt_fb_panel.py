@@ -69,6 +69,8 @@ MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max numb
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
 
 debug_layout_enabled = False
+debug_touch_enabled = False # New state for touch debugging
+last_debug_touch_coords: Optional[Tuple[int, int]] = None # Stores last touch for debug drawing
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 current_display_mode = "events" # "events" or "clock"
 active_buttons: List[Dict[str, Any]] = [] # Stores {'id': str, 'rect': (x1,y1,x2,y2)}
@@ -107,6 +109,28 @@ def refresh_display():
     else:
         print(f"Error: Unknown display mode '{current_display_mode}'. Defaulting to Event Log.", flush=True)
         render_event_log_full_panel(img, draw, messages_store, active_buttons, debug_layout_enabled)
+
+    # --- Add touch debug visuals ---
+    if debug_touch_enabled:
+        if last_debug_touch_coords:
+            lx, ly = last_debug_touch_coords
+            radius = 20
+            # Draw circle
+            draw.ellipse(
+                (lx - radius, ly - radius, lx + radius, ly + radius),
+                outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, # Green
+                width=2
+            )
+            # Draw crosshairs
+            draw.line([(lx, 0), (lx, HEIGHT - 1)], fill=lc.TEXT_COLOR_HIGHLIGHT, width=1) # White
+            draw.line([(0, ly), (WIDTH - 1, ly)], fill=lc.TEXT_COLOR_HIGHLIGHT, width=1) # White
+
+        if debug_layout_enabled: # If both touch and layout debug are enabled
+            # Draw active button touch zones (filled green rectangles)
+            # These buttons are populated by the render_..._full_panel calls above for the current screen
+            for button in active_buttons:
+                draw.rectangle(button['rect'], fill=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT) # Green filled
+    # --- End touch debug visuals ---
 
     push(img)
 
@@ -257,16 +281,27 @@ def _process_touch_event():
                     # print(f"Raw touch down at: ({last_touch_x}, {last_touch_y})", flush=True)
                     logical_x, logical_y = _transform_touch_coordinates(last_touch_x, last_touch_y)
                     print(f"Touch event: raw ({last_touch_x},{last_touch_y}), transformed ({logical_x},{logical_y})", flush=True)
-                    # print(f"Transformed touch at: ({logical_x}, {logical_y})", flush=True)
+
+                    button_pressed_and_refreshed = False
+                    if debug_touch_enabled: # Store coords early if debug is on
+                        global last_debug_touch_coords
+                        last_debug_touch_coords = (logical_x, logical_y)
 
                     for button in active_buttons:
                         x1, y1, x2, y2 = button['rect']
                         if x1 <= logical_x <= x2 and y1 <= logical_y <= y2:
-                            _handle_button_press(button['id'])
+                            _handle_button_press(button['id']) # This calls refresh_display()
+                            button_pressed_and_refreshed = True
                             # It's possible BTN_TOUCH release (value 0) or other EV_ABS events might follow.
                             # For simple tap, acting on press is usually fine.
                             # Consider clearing last_touch_x/y on BTN_TOUCH release if needed.
                             break # Found a button, no need to check others for this press event
+                    
+                    if debug_touch_enabled and not button_pressed_and_refreshed:
+                        # If no button was pressed (which would trigger its own refresh),
+                        # but touch debugging is on, refresh to show the touch point.
+                        # last_debug_touch_coords is already set from above.
+                        refresh_display()
     except BlockingIOError:
         # This can happen with read_one() if no event is available, though it typically returns None.
         # It's safe to just pass and try again later.
@@ -310,7 +345,7 @@ messages_store = deque(maxlen=MAX_MESSAGES_IN_STORE)
 
 def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
     """Handles incoming MQTT messages, including control messages."""
-    global debug_layout_enabled, log_control_messages_enabled, current_display_mode
+    global debug_layout_enabled, log_control_messages_enabled, current_display_mode, debug_touch_enabled, last_debug_touch_coords
     try:
         payload_str = msg.payload.decode(errors="ignore").strip()
         print(f"Received message on topic {msg.topic}: '{payload_str}'", flush=True)
@@ -331,6 +366,22 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
                 else:
                     print(f"Unknown payload for debug-layout: '{payload_str}'", flush=True)
                 needs_render = True
+            elif command_suffix == "debug-touch":
+                if payload_str == "enable":
+                    if not debug_touch_enabled: # Check current state to avoid redundant operations
+                        debug_touch_enabled = True
+                        print("Touch debugging ENABLED", flush=True)
+                        # Refresh to potentially show button zones if layout debug also on,
+                        # or to show a previous touch point if one was made while disabled.
+                        needs_render = True
+                elif payload_str == "disable" or payload_str == "":
+                    if debug_touch_enabled: # Check current state
+                        debug_touch_enabled = False
+                        last_debug_touch_coords = None # Clear last touch coords when disabling
+                        print("Touch debugging DISABLED", flush=True)
+                        needs_render = True # Refresh to clear any existing touch debug visuals
+                else:
+                    print(f"Unknown payload for debug-touch: '{payload_str}'", flush=True)
             elif command_suffix == "log-control":
                 if payload_str == "enable":
                     log_control_messages_enabled = True
