@@ -238,8 +238,11 @@ def _process_touch_event():
         return
 
     try:
-        # Read all immediately available events
-        for event in touch_device.read_loop_async(): # Use read_loop_async for non-blocking
+        while True: # Loop to read all currently available events
+            event = touch_device.read_one()
+            if event is None:
+                break # No more events are immediately available
+
             # print(f"Touch event: {categorize(event)}", flush=True) # Very verbose
             if event.type == ecodes.EV_ABS:
                 if event.code == ecodes.ABS_X:
@@ -261,8 +264,9 @@ def _process_touch_event():
                             # Consider clearing last_touch_x/y on BTN_TOUCH release if needed.
                             break # Found a button, no need to check others for this press event
     except BlockingIOError:
-        # This exception should not occur with read_loop_async, but good to have if using read_one()
-        pass # No event available, which is normal for non-blocking read_one()
+        # This can happen with read_one() if no event is available, though it typically returns None.
+        # It's safe to just pass and try again later.
+        pass
     except Exception as e:
         print(f"Error reading from touch device: {e}", flush=True)
         # Consider re-initializing or disabling touch if errors persist

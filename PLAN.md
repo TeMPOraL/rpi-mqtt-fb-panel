@@ -136,7 +136,7 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
 ## Phase 8: Advanced Button Functionality (Post-Touch Implementation)
 *   [x] **Implement "CLEAR" Button Logic (Event Log Mode):** (Covered in Phase 7)
     *   [x] On touch, clear all messages from `messages_store` (including sticky messages).
-    *   [ ] Re-render the display.
+    *   [x] Re-render the display. (Handled by `_handle_button_press` calling `refresh_display()`)
 *   [ ] **Implement "RELATIVE" Button Logic (Event Log Mode):**
     *   [ ] Add a state variable to toggle between absolute and relative timestamps.
     *   [ ] Modify message rendering to display timestamps as "HH:MM:SS" (absolute) or "-HH:MM:SS ago" (relative).
