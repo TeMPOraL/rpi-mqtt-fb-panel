@@ -33,12 +33,6 @@ TEXT_COLOR_BODY = LCARS_PURPLE_LIGHT
 TEXT_COLOR_BUTTON_LABEL = _hex_to_rgb("#000000")
 TEXT_COLOR_HIGHLIGHT = _hex_to_rgb("#FFFFFF")
 
-# Event list colors move it to the file dedicated to event lists display mode AI!
-TEXT_COLOR_INFO = TEXT_COLOR_BODY
-TEXT_COLOR_WARNING = LCARS_YELLOW
-TEXT_COLOR_ERROR = LCARS_RED_DARK
-TEXT_COLOR_CONTROL = LCARS_CYAN
-
 
 # ---------------------------------------------------------------------------
 # Specific UI Element Colors

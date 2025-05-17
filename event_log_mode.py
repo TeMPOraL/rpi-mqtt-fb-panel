@@ -10,6 +10,12 @@ from lcars_ui_components import render_top_bar, render_bottom_bar
 
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2
 
+# Event list specific text colors
+TEXT_COLOR_INFO = lc.TEXT_COLOR_BODY # Default for info messages
+TEXT_COLOR_WARNING = lc.LCARS_YELLOW
+TEXT_COLOR_ERROR = lc.LCARS_RED_DARK
+TEXT_COLOR_CONTROL = lc.LCARS_CYAN
+
 def _calculate_message_area_layout(draw):
     layout = {}
     layout['message_area_y_start'] = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING
@@ -117,10 +123,10 @@ def render_event_log_content_area(draw, layout, messages_store, debug_layout_ena
             break
 
         line_importance = line_data.get("importance", "info")
-        text_fill_color = lc.TEXT_COLOR_BODY
-        if line_importance == "control": text_fill_color = lc.TEXT_COLOR_CONTROL
-        elif line_importance == "error": text_fill_color = lc.TEXT_COLOR_ERROR
-        elif line_importance == "warning": text_fill_color = lc.TEXT_COLOR_WARNING
+        text_fill_color = TEXT_COLOR_INFO # Default
+        if line_importance == "control": text_fill_color = TEXT_COLOR_CONTROL
+        elif line_importance == "error": text_fill_color = TEXT_COLOR_ERROR
+        elif line_importance == "warning": text_fill_color = TEXT_COLOR_WARNING
 
         if line_data["source"]:
             draw.text((layout['col_source_x'], current_render_y), line_data["source"], font=lc.BODY_FONT, fill=text_fill_color)
