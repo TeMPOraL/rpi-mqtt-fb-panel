@@ -68,6 +68,7 @@ TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
 
+debug_layout_enabled = False
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 current_display_mode = "events" # "events" or "clock"
 active_buttons: List[Dict[str, Any]] = [] # Stores {'id': str, 'rect': (x1,y1,x2,y2)}
@@ -167,7 +168,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
     elif lc.ROTATE == 270:
         logical_x = physical_height - 1 - raw_y
         logical_y = raw_x
-    
+
     # Scaling if touch device coordinates are different from screen pixels
     if touch_device and ecodes.EV_ABS in touch_device.capabilities():
         abs_info_x = touch_device.capabilities()[ecodes.EV_ABS].get(ecodes.ABS_X)
@@ -188,7 +189,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                 # The rotation logic above assumes raw_x, raw_y are already in physical pixel space.
                 # So, scaling should happen *before* rotation.
                 # Let's redefine: scaled_raw_x, scaled_raw_y are the inputs after scaling.
-                
+
                 # Perform scaling first on the input raw_x, raw_y
                 scaled_input_x = (raw_x - min_x) * physical_width / (max_x - min_x)
                 scaled_input_y = (raw_y - min_y) * physical_height / (max_y - min_y)
@@ -206,7 +207,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                 elif lc.ROTATE == 270:
                     logical_x = physical_height - 1 - scaled_input_y
                     logical_y = scaled_input_x
-    
+
     return int(logical_x), int(logical_y)
 
 
@@ -254,7 +255,7 @@ def _process_touch_event():
                     # print(f"Raw touch down at: ({last_touch_x}, {last_touch_y})", flush=True)
                     logical_x, logical_y = _transform_touch_coordinates(last_touch_x, last_touch_y)
                     # print(f"Transformed touch at: ({logical_x}, {logical_y})", flush=True)
-                    
+
                     for button in active_buttons:
                         x1, y1, x2, y2 = button['rect']
                         if x1 <= logical_x <= x2 and y1 <= logical_y <= y2:
@@ -361,7 +362,7 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
             # Log the control command itself as a message if enabled
             if log_control_messages_enabled:
                 control_message_obj = Message(
-                    text=payload_str, 
+                    text=payload_str,
                     source=f"LCARS/{command_suffix}",
                     importance="control",
                     timestamp=datetime.now(),
@@ -374,7 +375,7 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
                 # but the mode switch itself (if it happened) needs a render.
                 if current_display_mode == "events": # Render if in events mode to show the logged control msg
                     needs_render = True
-            
+
             if needs_render: # This will be true if debug-layout changed, or mode changed, or if in events mode and control msg logged
                 refresh_display()
             return # Processed as control message
@@ -394,7 +395,7 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
             # If not JSON, treat the whole payload_str as the message text
             print(f"Warning: Could not decode JSON from topic {msg.topic}. Treating as raw text.", flush=True)
             text_content = payload_str
-            
+
             # Determine source from topic suffix for raw text messages
             source_val = "Unknown" # Default
             if msg.topic.startswith(MQTT_TOPIC_PREFIX):
@@ -440,7 +441,7 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         )
         messages_store.append(new_msg_obj)
         print(f"Stored new message: {new_msg_obj}", flush=True)
-        
+
         # Only re-render if in events mode.
         # Sticky messages might change this later.
         if current_display_mode == "events":
@@ -551,7 +552,7 @@ def main():
             if current_display_mode == "clock":
                 # Clock mode updates itself based on time, so refresh frequently
                 refresh_display() # This clears and repopulates active_buttons
-                
+
                 now = datetime.now()
                 sleep_for_alignment = (1_000_000 - now.microsecond) / 1_000_000.0
                 actual_sleep_time = max(0.01, sleep_for_alignment) # Min 10ms sleep
@@ -562,7 +563,7 @@ def main():
                 # So, just sleep for a bit to yield CPU and allow touch/MQTT to be processed.
                 # A short sleep allows responsiveness to touch.
                 time.sleep(0.05) # 50ms sleep, adjust as needed for responsiveness vs CPU usage
-            
+
     except KeyboardInterrupt:
         print("KeyboardInterrupt caught in main loop.", flush=True)
     except Exception as e:
