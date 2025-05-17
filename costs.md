@@ -1,3 +1,7 @@
 # Tracking AI coding costs, for curiosity
 
 - Session 1 - gemini/gemini-2.5-pro-preview-05-06 - $2.53
+- Session 2 - Architect: o3 (high) + editor gpt-4.1 - $2.28
+  Short responses, looks okay-ish, but burned in ~4 commits through the same amount of money that took gemini-2.5-pro-preview some 64 commits.
+  That's a factor 16x of a difference.
+
