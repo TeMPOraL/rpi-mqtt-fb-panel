@@ -180,18 +180,23 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
 
     logical_x, logical_y = raw_x, raw_y # Default, will be overwritten by specific rotation logic
 
-    if lc.ROTATE == 0: # Use former 180-degree logic
-        logical_x = physical_width - 1 - raw_x
-        logical_y = physical_height - 1 - raw_y
-    elif lc.ROTATE == 90: # Use former 270-degree logic
-        logical_x = physical_height - 1 - raw_y
+    # Apply new transformation logic based on observed axis swap and inversion
+    if lc.ROTATE == 0:
+        logical_x = physical_width - 1 - raw_y
         logical_y = raw_x
-    elif lc.ROTATE == 180: # Use former 0-degree logic
+    elif lc.ROTATE == 90:
         logical_x = raw_x
         logical_y = raw_y
-    elif lc.ROTATE == 270: # Use former 90-degree logic
+    elif lc.ROTATE == 180:
         logical_x = raw_y
-        logical_y = physical_width - 1 - raw_x
+        logical_y = physical_height - 1 - raw_x
+    elif lc.ROTATE == 270:
+        logical_x = physical_height - 1 - raw_x
+        logical_y = physical_width - 1 - raw_y
+    else: # Should not happen, but as a fallback
+        logical_x = raw_x
+        logical_y = raw_y
+
 
     # Scaling if touch device coordinates are different from screen pixels
     if touch_device and ecodes.EV_ABS in touch_device.capabilities():
@@ -220,19 +225,23 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                 scaled_input_x = (raw_x - min_x) * physical_width / (max_x - min_x)
                 scaled_input_y = (raw_y - min_y) * physical_height / (max_y - min_y)
 
-                # Now apply rotation logic to scaled_input_x and scaled_input_y
-                if lc.ROTATE == 0: # Use former 180-degree logic
-                    logical_x = physical_width - 1 - scaled_input_x
-                    logical_y = physical_height - 1 - scaled_input_y
-                elif lc.ROTATE == 90: # Use former 270-degree logic
-                    logical_x = physical_height - 1 - scaled_input_y
+                # Now apply the new transformation logic to scaled_input_x and scaled_input_y
+                if lc.ROTATE == 0:
+                    logical_x = physical_width - 1 - scaled_input_y
                     logical_y = scaled_input_x
-                elif lc.ROTATE == 180: # Use former 0-degree logic
+                elif lc.ROTATE == 90:
                     logical_x = scaled_input_x
                     logical_y = scaled_input_y
-                elif lc.ROTATE == 270: # Use former 90-degree logic
-                    logical_x = scaled_input_y # raw_y scaled
-                    logical_y = physical_width - 1 - scaled_input_x # raw_x scaled
+                elif lc.ROTATE == 180:
+                    logical_x = scaled_input_y
+                    logical_y = physical_height - 1 - scaled_input_x
+                elif lc.ROTATE == 270:
+                    logical_x = physical_height - 1 - scaled_input_x
+                    logical_y = physical_width - 1 - scaled_input_y
+                else: # Should not happen, but as a fallback
+                    logical_x = scaled_input_x
+                    logical_y = scaled_input_y
+
 
     return int(logical_x), int(logical_y)
 
