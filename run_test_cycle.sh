@@ -61,29 +61,46 @@ send_lcars_data_message_on_rpi() {
     echo "MQTT data message sent successfully via RPi."
 }
 
-# Checks journalctl logs on the RPi for tracebacks since a given timestamp.
-# Arguments:
-#   $1: Timestamp string (YYYY-MM-DD HH:MM:SS) for 'journalctl --since'
+# Checks journalctl logs on the RPi for tracebacks for the current service invocation.
 check_rpi_logs() {
-    local since_timestamp="$1"
+    # No longer takes a timestamp argument
     local log_check_command
+    local invocation_id_command
+    local invocation_id
+    local display_log_command
 
-    echo "Checking $SERVICE_NAME logs on RPi since $since_timestamp UTC..."
-    # Give a moment for logs to be written
+    echo "Checking $SERVICE_NAME logs on RPi for current service invocation..."
+    # Give a moment for logs to be written after a restart/event
     sleep 3
 
-    # Command to check for tracebacks.
-    # grep -q will be silent and exit 0 if found, 1 if not.
-    log_check_command="sudo journalctl -u $SERVICE_NAME --since '$since_timestamp' -o cat | grep -q -i 'Traceback (most recent call last):'"
+    invocation_id_command="systemctl show -p InvocationID --value $SERVICE_NAME"
+    # Capture the InvocationID from the RPi
+    invocation_id=$(ssh "$RPI_USER@$RPI_HOST" "$invocation_id_command")
+
+    if [ -z "$invocation_id" ]; then
+        echo "FAILURE: Could not retrieve InvocationID for $SERVICE_NAME."
+        echo "This might indicate the service is not running or failed to start properly."
+        echo "--- Last 50 log lines for $SERVICE_NAME as a fallback ---"
+        ssh "$RPI_USER@$RPI_HOST" "sudo journalctl -u $SERVICE_NAME -n 50 --no-pager -o cat"
+        echo "-----------------------------------------------------"
+        exit 1
+    fi
+    echo "Successfully retrieved InvocationID for $SERVICE_NAME: $invocation_id"
+
+    # Command to check for tracebacks for the current invocation.
+    # Using -i for case-insensitive "Traceback"
+    log_check_command="sudo journalctl _SYSTEMD_INVOCATION_ID='$invocation_id' -o cat | grep -q -i 'Traceback (most recent call last):'"
 
     if ssh "$RPI_USER@$RPI_HOST" "$log_check_command"; then
-        echo "FAILURE: Traceback detected in $SERVICE_NAME logs."
-        echo "--- Relevant logs from $SERVICE_NAME since $since_timestamp UTC ---"
-        ssh "$RPI_USER@$RPI_HOST" "sudo journalctl -u $SERVICE_NAME --since '$since_timestamp' -o cat"
+        echo "FAILURE: Traceback detected in $SERVICE_NAME logs for InvocationID $invocation_id."
+        echo "--- Displaying up to 100 lines from $SERVICE_NAME for InvocationID $invocation_id ---"
+        # Using --lines=100 and --no-pager for cleaner output. -o cat ensures raw text.
+        display_log_command="sudo journalctl _SYSTEMD_INVOCATION_ID='$invocation_id' --no-pager --lines=100 -o cat"
+        ssh "$RPI_USER@$RPI_HOST" "$display_log_command"
         echo "-----------------------------------------------------"
         exit 1
     else
-        echo "No traceback detected in $SERVICE_NAME logs for this step."
+        echo "No traceback detected in $SERVICE_NAME logs for InvocationID $invocation_id."
     fi
 }
 
@@ -98,14 +115,12 @@ echo "[TEST SCRIPT] Git push completed."
 
 # 2. SSH to RPi, Pull, Restart Service
 echo "[TEST SCRIPT] Step 2: Updating code on RPi and restarting $SERVICE_NAME..."
-# Get current UTC time on RPi *before* the service restart
-current_rpi_time_utc_step2=$(ssh "$RPI_USER@$RPI_HOST" "date -u +'%Y-%m-%d %H:%M:%S'")
 ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull && sudo systemctl restart $SERVICE_NAME"
 echo "[TEST SCRIPT] Code updated and $SERVICE_NAME restarted on RPi."
 
 # 3. Check logs after first restart
 echo "[TEST SCRIPT] Step 3: Checking logs after initial service restart..."
-check_rpi_logs "$current_rpi_time_utc_step2"
+check_rpi_logs
 
 # 3.1 Send test messages with different importance levels
 echo "[TEST SCRIPT] Step 3.1: Sending test messages with different importance levels..."
@@ -116,8 +131,6 @@ echo "[TEST SCRIPT] Test messages sent."
 
 # 4. Send MQTT message via RPi to switch to 'clock' mode
 echo "[TEST SCRIPT] Step 4: Sending MQTT message via RPi to switch to 'clock' mode..."
-# Get current UTC time on RPi *before* the MQTT command might cause issues
-current_rpi_time_utc_step4=$(ssh "$RPI_USER@$RPI_HOST" "date -u +'%Y-%m-%d %H:%M:%S'")
 echo "[TEST SCRIPT] Waiting 1 second before sending clock mode command..."
 sleep 1
 send_lcars_command_on_rpi "mode-select" "clock"
@@ -125,19 +138,16 @@ echo "[TEST SCRIPT] MQTT message sent via RPi."
 
 # 5. Check logs after MQTT messages and mode switch command
 echo "[TEST SCRIPT] Step 5: Checking logs after sending test messages and mode switch command..."
-# We use the timestamp from before the MQTT message, as the app might log immediately upon receiving it.
-check_rpi_logs "$current_rpi_time_utc_step4"
+check_rpi_logs
 
 # 6. Restart service again (to test shutdown/startup sequence)
 echo "[TEST SCRIPT] Step 6: Restarting $SERVICE_NAME again on RPi..."
-# Get current UTC time on RPi *before* the second service restart
-current_rpi_time_utc_step6=$(ssh "$RPI_USER@$RPI_HOST" "date -u +'%Y-%m-%d %H:%M:%S'")
 ssh "$RPI_USER@$RPI_HOST" "sudo systemctl restart $SERVICE_NAME"
 echo "[TEST SCRIPT] $SERVICE_NAME restarted again on RPi."
 
 # 7. Check logs after second restart
 echo "[TEST SCRIPT] Step 7: Checking logs after second service restart..."
-check_rpi_logs "$current_rpi_time_utc_step6"
+check_rpi_logs
 
 echo "[TEST SCRIPT] All checks passed. Test cycle successful."
 exit 0
