@@ -171,6 +171,11 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
                         needs_render = True
                 else:
                     print(f"Unknown payload for mode-select: '{payload_str}'", flush=True)
+            elif command_suffix == "clear-events":
+                messages_store.clear()
+                print("All event log messages CLEARED", flush=True)
+                if current_display_mode == "events": # Only need to re-render if in events mode
+                    needs_render = True
             else:
                 print(f"Unknown control command suffix: {command_suffix}", flush=True)
 

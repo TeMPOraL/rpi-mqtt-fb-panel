@@ -150,9 +150,11 @@
         *   Topic Suffix: `log-control` (Implemented)
             *   Payload `"enable"`: Control messages will be added to the main message list.
             *   Payload `"disable"` or empty string: Control messages will not be added to the main message list.
-        *   Topic Suffix: `mode-select` (Not Yet Implemented)
+        *   Topic Suffix: `mode-select` (Implemented)
             *   Payload `"events"`: Switches the display to Event Log mode.
             *   Payload `"clock"`: Switches the display to Clock mode.
+        *   Topic Suffix: `clear-events` (Implemented)
+            *   Payload: (any, or empty) Clears all messages from the event log display.
     *   **Layout Debugging Visuals:** (Implemented)
         *   When enabled, all standard LCARS UI elements (bars, endcaps, buttons, text elements drawn by `draw_lcars_shape` and `draw_text_in_rect`) will have their bounding boxes rendered as a 1-pixel green outline.
         *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline. A blue vertical line indicates the calculated message wrapping point in the message column.

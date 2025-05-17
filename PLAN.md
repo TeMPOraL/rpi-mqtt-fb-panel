@@ -107,10 +107,14 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [ ] Consider distinct visual styling for sticky messages (e.g., background color, icon).
 
 ## Phase 6: Clearing Mechanism
-*   [ ] **MQTT-based Clearing (Sticky Messages):**
-    *   [ ] Define a specific MQTT topic and message payload to trigger clearing of sticky messages (e.g., topic `home/lcars_panel/control`, payload `{"command": "clear_sticky"}`).
+*   [x] **MQTT-based Clearing (All Event Log Messages):**
+    *   [x] Define `clear-events` control command (topic suffix `clear-events` under `MQTT_CONTROL_TOPIC_PREFIX`).
+    *   [x] Update `on_mqtt` to handle this command: clear `messages_store`.
+    *   [x] Refresh display if in "events" mode.
+*   [ ] **MQTT-based Clearing (Sticky Messages - Future):**
+    *   [ ] Define a specific MQTT topic and message payload to trigger clearing of *only* sticky messages (e.g., topic `home/lcars_panel/control`, payload `{"command": "clear_sticky"}`).
     *   [ ] Update `on_mqtt` to handle this command.
-    *   [ ] Implement logic to remove/clear all sticky messages from the store and re-render.
+    *   [ ] Implement logic to remove/clear only sticky messages from the store and re-render.
 
 ## Phase 7: Touchscreen Input (Advanced)
 *   [ ] **Input Library Integration:**
