@@ -171,8 +171,10 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
 
     # Scaling if touch device coordinates are different from screen pixels
     if touch_device and ecodes.EV_ABS in touch_device.capabilities():
-        abs_info_x = touch_device.capabilities()[ecodes.EV_ABS].get(ecodes.ABS_X)
-        abs_info_y = touch_device.capabilities()[ecodes.EV_ABS].get(ecodes.ABS_Y)
+        # Convert the list of (code, absinfo) tuples to a dictionary
+        abs_event_capabilities = dict(touch_device.capabilities()[ecodes.EV_ABS])
+        abs_info_x = abs_event_capabilities.get(ecodes.ABS_X)
+        abs_info_y = abs_event_capabilities.get(ecodes.ABS_Y)
 
         if abs_info_x and abs_info_y:
             min_x, max_x = abs_info_x.min, abs_info_x.max
