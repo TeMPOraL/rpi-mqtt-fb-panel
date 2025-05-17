@@ -11,7 +11,7 @@ SERVICE_NAME="mqtt-alert.service"
 
 MQTT_BROKER_HOST="homeassistant.local"
 # This is the prefix for data topics on the RPi, where test messages will be sent.
-MQTT_DATA_TOPIC_PREFIX_ON_RPI="home/lcars_panel/"
+MQTT_DATA_TOPIC_PREFIX_ON_RPI="home/alert/"
 # This is the prefix for control topics on the RPi. Commands like 'mode-select' will be appended.
 MQTT_CONTROL_TOPIC_PREFIX_ON_RPI="lcars/alert-panel/"
 

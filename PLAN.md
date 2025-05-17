@@ -86,9 +86,9 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] **Button Configuration for Future Touch Input:**
         *   [x] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
 *   [ ] **Phase D: Testing and Refinement**
-    *   [ ] Test Event Log mode functions as before.
-    *   [ ] Test Clock Mode display (time, date, timezone, updates).
-    *   [ ] Test mode switching via MQTT.
+    *   [x] Test Event Log mode functions as before.
+    *   [x] Test Clock Mode display (time, date, timezone, updates).
+    *   [x] Test mode switching via MQTT.
     *   [ ] Monitor resource usage.
     *   [ ] Code review.
 
