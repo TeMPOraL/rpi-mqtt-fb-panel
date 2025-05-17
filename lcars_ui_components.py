@@ -13,41 +13,39 @@ def render_top_bar(draw: ImageDraw.ImageDraw, screen_width: int, title_text: str
     right_terminator_width = lc.BAR_HEIGHT # Width of the terminator element
     draw_lcars_shape(draw, screen_width - lc.PADDING - right_terminator_width, lc.PADDING, right_terminator_width, lc.BAR_HEIGHT, lc.CORNER_RADIUS, lc.COLOR_BARS, right_round=True, debug_draw_bbox=debug_layout_enabled)
 
-    # "EVENT LOG" Text and associated Bar Segment
+    # Title Text (e.g. "EVENT LOG" or "CURRENT TIME") and associated Bar Segment
     # The Left and Right Terminators are drawn by the code immediately preceding this block.
-    # This section calculates the position for the "EVENT LOG" text, draws it,
+    # This section calculates the position for the title_text, draws it,
     # and then draws a bar segment filling the space between the Left Terminator and the text.
 
-    event_log_text = "EVENT LOG"
-    event_log_text_w, _ = text_size(draw, event_log_text, lc.TITLE_FONT)
+    # Use the provided title_text parameter
+    bar_title_text = title_text 
+    bar_title_text_w, _ = text_size(draw, bar_title_text, lc.TITLE_FONT)
 
-    # Determine X position for "EVENT LOG" text (left edge).
+    # Determine X position for title_text (left edge).
     # The right edge of the text should be lc.PADDING to the left of the Right Terminator's starting X.
-    text_x_coordinate = (screen_width - lc.PADDING - lc.BAR_HEIGHT) - lc.PADDING - event_log_text_w
+    text_x_coordinate = (screen_width - lc.PADDING - lc.BAR_HEIGHT) - lc.PADDING - bar_title_text_w
     
-    # Calculate Y position for the baseline of "EVENT LOG" text.
+    # Calculate Y position for the baseline of title_text.
     # For TITLE_FONT within a BAR_HEIGHT sized to it, the baseline is at the bottom of the bar.
     # lc.PADDING is the Y offset for the top bar itself.
-    event_log_baseline_y = lc.PADDING + lc.BAR_HEIGHT
+    bar_title_baseline_y = lc.PADDING + lc.BAR_HEIGHT
     
-    # Draw the "EVENT LOG" text directly on the background, using "ls" (left-baseline) anchor.
-    # For debug drawing, we'll wrap this in draw_text_in_rect if we want its bounding box.
-    # However, direct draw.text doesn't have a bbox option. For now, only elements using draw_lcars_shape or draw_text_in_rect get bboxes.
-    # If precise bbox for this text is needed, it would require refactoring to use draw_text_in_rect or similar.
-    draw.text((text_x_coordinate, event_log_baseline_y), event_log_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
+    # Draw the title_text directly on the background, using "ls" (left-baseline) anchor.
+    draw.text((text_x_coordinate, bar_title_baseline_y), bar_title_text, font=lc.TITLE_FONT, fill=lc.TEXT_COLOR_TITLE, anchor="ls")
     if debug_layout_enabled: # Manual bbox for this specific text element
-        event_log_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
-        draw.rectangle((text_x_coordinate, event_log_baseline_y - event_log_text_h, 
-                        text_x_coordinate + event_log_text_w, event_log_baseline_y), 
+        bar_title_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
+        draw.rectangle((text_x_coordinate, bar_title_baseline_y - bar_title_text_h, 
+                        text_x_coordinate + bar_title_text_w, bar_title_baseline_y), 
                        outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
 
 
     # Draw the Main Bar Segment.
-    # It starts lc.PADDING after the Left Terminator and ends lc.PADDING before the "EVENT LOG" text.
+    # It starts lc.PADDING after the Left Terminator and ends lc.PADDING before the title_text.
     # Left Terminator: x=lc.PADDING, width=lc.BAR_HEIGHT. So it ends at lc.PADDING + lc.BAR_HEIGHT.
     bar_segment_start_x = lc.PADDING + lc.BAR_HEIGHT + lc.PADDING # Add lc.PADDING gap
     
-    # The bar segment should end lc.PADDING to the left of where the "EVENT LOG" text starts.
+    # The bar segment should end lc.PADDING to the left of where the title_text starts.
     bar_segment_end_x = text_x_coordinate - lc.PADDING
     
     bar_segment_width = bar_segment_end_x - bar_segment_start_x
@@ -68,50 +66,52 @@ def render_bottom_bar(draw: ImageDraw.ImageDraw, screen_width: int, screen_heigh
     # current_x tracks the starting X for the next element, including lc.PADDING from the previous one.
     current_x = lc.PADDING + left_terminator_width + lc.PADDING
 
-    # "MQTT STREAM" Text (No background bar)
-    mqtt_stream_text = "MQTT STREAM"
-    mqtt_stream_text_w, _ = text_size(draw, mqtt_stream_text, lc.TITLE_FONT)
+    # Dynamic Label Text (e.g., "MQTT STREAM" or Timezone Info)
+    # Use the provided label_text parameter
+    bar_label_text = label_text
+    bar_label_text_w, _ = text_size(draw, bar_label_text, lc.TITLE_FONT)
     
     # Calculate X for centering the text based on its own width.
     # The text starts at current_x. Anchor "ms" uses the center of the text.
-    mqtt_stream_text_center_x = current_x + mqtt_stream_text_w // 2
-    mqtt_stream_baseline_y = BOTTOM_BAR_Y + lc.BAR_HEIGHT
+    bar_label_text_center_x = current_x + bar_label_text_w // 2
+    bar_label_baseline_y = BOTTOM_BAR_Y + lc.BAR_HEIGHT
     
-    draw.text((mqtt_stream_text_center_x, mqtt_stream_baseline_y), 
-              mqtt_stream_text, 
+    draw.text((bar_label_text_center_x, bar_label_baseline_y), 
+              bar_label_text, 
               font=lc.TITLE_FONT,
               fill=lc.TEXT_COLOR_TITLE,
               anchor="ms")
     if debug_layout_enabled: # Manual bbox for this specific text element
-        mqtt_stream_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
-        # For "ms" anchor, text_center_x is the horizontal center.
-        # Baseline y is BOTTOM_BAR_Y + lc.BAR_HEIGHT. Top of text is roughly baseline_y - h.
-        draw.rectangle((mqtt_stream_text_center_x - mqtt_stream_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT - mqtt_stream_text_h,
-                        mqtt_stream_text_center_x + mqtt_stream_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT),
+        bar_label_text_h = lc.TITLE_FONT.getmask("A").size[1] # Approx height
+        draw.rectangle((bar_label_text_center_x - bar_label_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT - bar_label_text_h,
+                        bar_label_text_center_x + bar_label_text_w // 2, BOTTOM_BAR_Y + lc.BAR_HEIGHT),
                        outline=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT, width=1)
 
-    current_x += mqtt_stream_text_w + lc.PADDING # Advance current_x past the text and its trailing padding
+    current_x += bar_label_text_w + lc.PADDING # Advance current_x past the text and its trailing padding
 
     # --- Elements from Right to Left for Sizing ---
     right_terminator_width = lc.BAR_HEIGHT
     
     # Calculate total width needed for all buttons and their inter-paddings
-    button_texts = ["CLEAR", "RELATIVE", "CLOCK"]
-    button_colors = [lc.COLOR_BUTTON_CLEAR, lc.COLOR_BUTTON_RELATIVE, lc.COLOR_BUTTON_CLOCK]
+    # Use the provided buttons_config parameter
     button_details = []
-    
     required_width_for_all_buttons_and_spacing = 0
-    for i, btn_text in enumerate(button_texts):
-        btn_w, _ = text_size(draw, btn_text, lc.BODY_FONT)
-        button_render_width = btn_w + (2 * lc.BUTTON_PADDING_X)
-        button_details.append({
-            'text': btn_text, 
-            'width': button_render_width, 
-            'color': button_colors[i]
-        })
-        required_width_for_all_buttons_and_spacing += button_render_width
-        if i < len(button_texts) - 1: # Add inter-button padding
-            required_width_for_all_buttons_and_spacing += lc.PADDING
+    if buttons_config: # Ensure buttons_config is not None or empty
+        for i, button_spec in enumerate(buttons_config):
+            btn_text = button_spec['text']
+            # btn_color = button_spec['color'] # Color is part of button_spec, will be used when drawing
+
+            btn_w, _ = text_size(draw, btn_text, lc.BODY_FONT)
+            button_render_width = btn_w + (2 * lc.BUTTON_PADDING_X)
+            button_details.append({
+                'text': btn_text, 
+                'width': button_render_width, 
+                'color': button_spec['color'] # Store color from spec
+                # 'id': button_spec.get('id') # Can be carried over if needed later
+            })
+            required_width_for_all_buttons_and_spacing += button_render_width
+            if i < len(buttons_config) - 1: # Add inter-button padding
+                required_width_for_all_buttons_and_spacing += lc.PADDING
 
     # Determine the starting X position for the button group (aligning from the right)
     # Space before right terminator: lc.PADDING
