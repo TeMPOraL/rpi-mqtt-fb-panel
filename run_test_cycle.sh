@@ -10,6 +10,8 @@ RPI_PROJECT_DIR="~/repos/rpi-mqtt-fb-panel"
 SERVICE_NAME="mqtt-alert.service"
 
 MQTT_BROKER_HOST="homeassistant.local"
+# This is the prefix for data topics on the RPi, where test messages will be sent.
+MQTT_DATA_TOPIC_PREFIX_ON_RPI="home/lcars_panel/"
 # This is the prefix for control topics on the RPi. Commands like 'mode-select' will be appended.
 MQTT_CONTROL_TOPIC_PREFIX_ON_RPI="lcars/alert-panel/"
 
@@ -37,6 +39,26 @@ send_lcars_command_on_rpi() {
         exit 1
     fi
     echo "MQTT command sent successfully via RPi."
+}
+
+# Sends a data message (JSON payload) via MQTT by executing mosquitto_pub on the RPi.
+# Arguments:
+#   $1: Topic suffix (e.g., "test_messages")
+#   $2: JSON message payload string
+send_lcars_data_message_on_rpi() {
+    local topic_suffix="$1"
+    local json_payload="$2"
+    local full_topic="${MQTT_DATA_TOPIC_PREFIX_ON_RPI}${topic_suffix}"
+
+    echo "Sending MQTT data message via RPi: Topic='$full_topic', Message='$json_payload'"
+    # Construct the command to be run on the RPi
+    local remote_command="mosquitto_pub -h '$MQTT_BROKER_HOST' -t '$full_topic' -m '$json_payload'"
+
+    if ! ssh "$RPI_USER@$RPI_HOST" "$remote_command"; then
+        echo "FAILURE: Failed to send MQTT data message via RPi."
+        exit 1
+    fi
+    echo "MQTT data message sent successfully via RPi."
 }
 
 # Checks journalctl logs on the RPi for tracebacks since a given timestamp.
@@ -85,14 +107,23 @@ echo "[TEST SCRIPT] Code updated and $SERVICE_NAME restarted on RPi."
 echo "[TEST SCRIPT] Step 3: Checking logs after initial service restart..."
 check_rpi_logs "$current_rpi_time_utc_step2"
 
-# 4. Send MQTT message via RPi
+# 3.1 Send test messages with different importance levels
+echo "[TEST SCRIPT] Step 3.1: Sending test messages with different importance levels..."
+send_lcars_data_message_on_rpi "test/info"     '{"message": "Test INFO message from script", "source": "TestScript", "importance": "info"}'
+send_lcars_data_message_on_rpi "test/warning"  '{"message": "Test WARNING message from script", "source": "TestScript", "importance": "warning"}'
+send_lcars_data_message_on_rpi "test/error"    '{"message": "Test ERROR message from script", "source": "TestScript", "importance": "error"}'
+echo "[TEST SCRIPT] Test messages sent."
+
+# 4. Send MQTT message via RPi to switch to 'clock' mode
 echo "[TEST SCRIPT] Step 4: Sending MQTT message via RPi to switch to 'clock' mode..."
 # Get current UTC time on RPi *before* the MQTT command might cause issues
 current_rpi_time_utc_step4=$(ssh "$RPI_USER@$RPI_HOST" "date -u +'%Y-%m-%d %H:%M:%S'")
+echo "[TEST SCRIPT] Waiting 1 second before sending clock mode command..."
+sleep 1
 send_lcars_command_on_rpi "mode-select" "clock"
 echo "[TEST SCRIPT] MQTT message sent via RPi."
 
-# 5. Check logs after MQTT message
+# 5. Check logs after MQTT messages and mode switch command
 echo "[TEST SCRIPT] Step 5: Checking logs after sending MQTT message..."
 # We use the timestamp from before the MQTT message, as the app might log immediately upon receiving it.
 check_rpi_logs "$current_rpi_time_utc_step4"
