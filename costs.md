@@ -5,4 +5,9 @@
   Short responses, looks okay-ish, but burned in ~4 commits through the same amount of money that took gemini-2.5-pro-preview some 64 commits.
   That's a factor 16x of a difference.
 - Session 3 - gemini/gemini-2.5-pro-preview-05-06 - $0.28
+- Session 4 - gemini/gemini-2.5-pro-preview-05-06 - $1.32
+  (still ongoing!)
 
+Total cost:
+USD: (+ 2.53 2.28 0.28 1.32)
+== $6.41
