@@ -1,8 +1,8 @@
 import mmap, os, struct, fcntl, ctypes, array
 from typing import Optional
 from dataclasses import dataclass
-import numpy as np
 from PIL import Image
+FBIO_WAITFORVSYNC = 0x4680   # ioctl id for vsync wait
 
 import lcars_constants as lc
 
@@ -61,18 +61,24 @@ def push(img: Image.Image):
     if lc.ROTATE:
         img = img.rotate(lc.ROTATE, expand=True)
 
-    if fb.bpp == 16:  # RGB565 fast path
+    # --- build raw pixel buffer ------------------------------------------------
+    if fb.bpp == 16:                       # RGB565
         if img.mode != "RGB":
             img = img.convert("RGB")
-        fb.mem.seek(0)
-        fb.mem.write(img.tobytes("raw", "BGR;16"))  # Pillow does RGB→RGB565 in C
-    else:  # 32-bpp
-        # Pillow versions shipped with Raspberry-Pi OS cannot convert RGB→BGRA
-        # directly.  Convert to RGBA first, then request raw bytes in BGRA order.
+        buf = img.tobytes("raw", "BGR;16")
+    else:                                  # 32-bpp XRGB/BGRA
         if img.mode != "RGBA":
             img = img.convert("RGBA")
-        fb.mem.seek(0)
-        fb.mem.write(img.tobytes("raw", "BGRA"))
+        buf = img.tobytes("raw", "BGRA")
+
+    # --- wait for vertical blank to avoid tearing -----------------------------
+    try:
+        fcntl.ioctl(fb.fd, FBIO_WAITFORVSYNC, 0)
+    except OSError:
+        pass                               # Not all drivers support VSYNC ioctl
+
+    # --- single fast memcpy into the mmap'ed framebuffer ----------------------
+    fb.mem[:len(buf)] = buf                # ≈ memmove, much faster than .write()
 
 
 def blank():

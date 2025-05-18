@@ -630,9 +630,6 @@ def main():
     # Initial display render after setup
     refresh_display()
 
-    # Initial display render after setup
-    refresh_display()
-
     client.loop_start() # Start non-blocking loop
     print("MQTT client loop started in background.", flush=True)
 
