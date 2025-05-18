@@ -102,11 +102,11 @@ echo "[TEST SCRIPT] Starting test cycle..."
 
 # 1. Git Push
 echo "[TEST SCRIPT] Step 1: Pushing local changes to remote repository..."
-git push
+git push -q
 
 # 2. SSH to RPi, Pull, Restart Service
 echo "[TEST SCRIPT] Step 2: Updating code on RPi and restarting $SERVICE_NAME..."
-ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull --ff-only && sudo systemctl restart $SERVICE_NAME"
+ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull --ff-only -q && sudo systemctl restart $SERVICE_NAME > /dev/null"
 
 # 3. Check logs after first restart
 echo "[TEST SCRIPT] Step 3: Checking logs after initial service restart..."
