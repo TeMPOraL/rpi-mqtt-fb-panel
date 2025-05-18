@@ -66,11 +66,13 @@ def push(img: Image.Image):
             img = img.convert("RGB")
         fb.mem.seek(0)
         fb.mem.write(img.tobytes("raw", "BGR;16"))  # Pillow does RGB→RGB565 in C
-    else:  # 32-bpp (assume BGRA)
-        if img.mode != "BGRA":
-            img = img.convert("BGRA")
+    else:  # 32-bpp
+        # Pillow versions shipped with Raspberry-Pi OS cannot convert RGB→BGRA
+        # directly.  Convert to RGBA first, then request raw bytes in BGRA order.
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
         fb.mem.seek(0)
-        fb.mem.write(img.tobytes())
+        fb.mem.write(img.tobytes("raw", "BGRA"))
 
 
 def blank():
