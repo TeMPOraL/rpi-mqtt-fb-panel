@@ -6,8 +6,10 @@
   That's a factor 16x of a difference.
 - Session 3 - gemini/gemini-2.5-pro-preview-05-06 - $0.28
 - Session 4 - gemini/gemini-2.5-pro-preview-05-06 - $1.43
+- Session 4 - o3 (high), then Architect: o3 (high) + editor gpt-4.1 - $2.32
+  That was a short but expensive optimization session.
 
 Total cost:
-USD: (+ 2.53 2.28 0.28 1.43)
+USD: (+ 2.53 2.28 0.28 1.43 2.32)
 
-== $6.52
+== $8.84
