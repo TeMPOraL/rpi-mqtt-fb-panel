@@ -115,7 +115,7 @@ echo "[TEST SCRIPT] Git push completed."
 
 # 2. SSH to RPi, Pull, Restart Service
 echo "[TEST SCRIPT] Step 2: Updating code on RPi and restarting $SERVICE_NAME..."
-ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull && sudo systemctl restart $SERVICE_NAME"
+ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull --ff-only && sudo systemctl restart $SERVICE_NAME"
 echo "[TEST SCRIPT] Code updated and $SERVICE_NAME restarted on RPi."
 
 # 3. Check logs after first restart
