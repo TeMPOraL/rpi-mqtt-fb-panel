@@ -8,6 +8,7 @@ try:
 except ImportError:
     tzlocal = None
 
+from lcars_font_cache import get_font
 import lcars_constants as lc
 from framebuffer_utils import WIDTH, HEIGHT
 from lcars_drawing_utils import text_size, draw_text_in_rect
@@ -63,11 +64,9 @@ def _get_max_font_for_text_and_space(draw, text, font_path, target_height, targe
     best_font = None
     last_w, last_h = 0, 0
 
-    from PIL import ImageFont
-
     while current_size >= min_font_size:
         try:
-            font = ImageFont.truetype(font_path, current_size)
+            font = get_font(font_path, current_size)
             text_w, text_h = text_size(draw, text, font)
 
             if text_h <= target_height and text_w <= target_width:
@@ -88,7 +87,7 @@ def _get_max_font_for_text_and_space(draw, text, font_path, target_height, targe
         return best_font, last_w, last_h
     else:
         try:
-            font = ImageFont.truetype(font_path, min_font_size)
+            font = get_font(font_path, min_font_size)
             text_w_min, text_h_min = text_size(draw, text, font)
             return font, text_w_min, text_h_min
         except:

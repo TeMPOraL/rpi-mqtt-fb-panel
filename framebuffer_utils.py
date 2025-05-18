@@ -61,29 +61,16 @@ def push(img: Image.Image):
     if lc.ROTATE:
         img = img.rotate(lc.ROTATE, expand=True)
 
-    if fb.bpp == 16:  # RGB565 path
-        rgb = np.asarray(img.convert("RGB"), dtype=np.uint16)
-        r = (rgb[..., 0] >> 3) & 0x1F
-        g = (rgb[..., 1] >> 2) & 0x3F
-        b = (rgb[..., 2] >> 3) & 0x1F
-        rgb565 = (r << 11) | (g << 5) | b
+    if fb.bpp == 16:  # RGB565 fast path
+        if img.mode != "RGB":
+            img = img.convert("RGB")
         fb.mem.seek(0)
-        fb.mem.write(rgb565.astype('<u2').tobytes())
-    else: # Fall‑back: XRGB8888 – assume little‑endian (most common for RPi framebuffers)
-          # Or could be RGBA or BGRA depending on specific fb config.
-          # Common for 32bpp on Pi is BGRA byte order for XRGB visual.
-        # Convert to RGBA and ensure the array is writable by making a copy.
-        bgra = np.asarray(img.convert("RGBA"), dtype=np.uint8).copy()
-        # If framebuffer expects BGRA (typical for XRGB on little-endian):
-        # Swap R and B channels: R is at index 0, G at 1, B at 2, A at 3
-        # We want B G R A
-        b = bgra[..., 2:3].copy()
-        r = bgra[..., 0:1].copy()
-        bgra[..., 0:1] = b # B to first channel
-        bgra[..., 2:3] = r # R to third channel
-        
+        fb.mem.write(img.tobytes("raw", "BGR;16"))  # Pillow does RGB→RGB565 in C
+    else:  # 32-bpp (assume BGRA)
+        if img.mode != "BGRA":
+            img = img.convert("BGRA")
         fb.mem.seek(0)
-        fb.mem.write(bgra.tobytes())
+        fb.mem.write(img.tobytes())
 
 
 def blank():
