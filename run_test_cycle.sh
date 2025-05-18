@@ -28,7 +28,6 @@ send_lcars_command_on_rpi() {
     local message_payload="$2"
     local full_topic="${MQTT_CONTROL_TOPIC_PREFIX_ON_RPI}${topic_suffix}"
 
-    echo "Sending MQTT command via RPi: Topic='$full_topic', Message='$message_payload'"
     # Construct the command to be run on the RPi
     # Note: MQTT_BROKER_HOST is expanded locally.
     # User/password are intentionally omitted; mosquitto_pub on RPi must handle auth.
@@ -38,7 +37,6 @@ send_lcars_command_on_rpi() {
         echo "FAILURE: Failed to send MQTT command via RPi."
         exit 1
     fi
-    echo "MQTT command sent successfully via RPi."
 }
 
 # Sends a data message (JSON payload) via MQTT by executing mosquitto_pub on the RPi.
@@ -50,7 +48,6 @@ send_lcars_data_message_on_rpi() {
     local json_payload="$2"
     local full_topic="${MQTT_DATA_TOPIC_PREFIX_ON_RPI}${topic_suffix}"
 
-    echo "Sending MQTT data message via RPi: Topic='$full_topic', Message='$json_payload'"
     # Construct the command to be run on the RPi
     local remote_command="mosquitto_pub -h '$MQTT_BROKER_HOST' -t '$full_topic' -m '$json_payload'"
 
@@ -58,7 +55,6 @@ send_lcars_data_message_on_rpi() {
         echo "FAILURE: Failed to send MQTT data message via RPi."
         exit 1
     fi
-    echo "MQTT data message sent successfully via RPi."
 }
 
 # Checks journalctl logs on the RPi for tracebacks for the current service invocation.
@@ -69,7 +65,6 @@ check_rpi_logs() {
     local invocation_id
     local display_log_command
 
-    echo "Checking $SERVICE_NAME logs on RPi for current service invocation..."
     # Give a moment for logs to be written after a restart/event
     sleep 3
 
@@ -85,7 +80,6 @@ check_rpi_logs() {
         echo "-----------------------------------------------------"
         exit 1
     fi
-    echo "Successfully retrieved InvocationID for $SERVICE_NAME: $invocation_id"
 
     # Command to check for tracebacks for the current invocation.
     # Using -i for case-insensitive "Traceback"
@@ -99,8 +93,6 @@ check_rpi_logs() {
         ssh "$RPI_USER@$RPI_HOST" "$display_log_command"
         echo "-----------------------------------------------------"
         exit 1
-    else
-        echo "No traceback detected in $SERVICE_NAME logs for InvocationID $invocation_id."
     fi
 }
 
@@ -111,12 +103,10 @@ echo "[TEST SCRIPT] Starting test cycle..."
 # 1. Git Push
 echo "[TEST SCRIPT] Step 1: Pushing local changes to remote repository..."
 git push
-echo "[TEST SCRIPT] Git push completed."
 
 # 2. SSH to RPi, Pull, Restart Service
 echo "[TEST SCRIPT] Step 2: Updating code on RPi and restarting $SERVICE_NAME..."
 ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull --ff-only && sudo systemctl restart $SERVICE_NAME"
-echo "[TEST SCRIPT] Code updated and $SERVICE_NAME restarted on RPi."
 
 # 3. Check logs after first restart
 echo "[TEST SCRIPT] Step 3: Checking logs after initial service restart..."
@@ -127,14 +117,12 @@ echo "[TEST SCRIPT] Step 3.1: Sending test messages with different importance le
 send_lcars_data_message_on_rpi "test/info"     '{"message": "Test INFO message from script", "source": "TestScript", "importance": "info"}'
 send_lcars_data_message_on_rpi "test/warning"  '{"message": "Test WARNING message from script", "source": "TestScript", "importance": "warning"}'
 send_lcars_data_message_on_rpi "test/error"    '{"message": "Test ERROR message from script", "source": "TestScript", "importance": "error"}'
-echo "[TEST SCRIPT] Test messages sent."
 
 # 4. Send MQTT message via RPi to switch to 'clock' mode
 echo "[TEST SCRIPT] Step 4: Sending MQTT message via RPi to switch to 'clock' mode..."
 echo "[TEST SCRIPT] Waiting 1 second before sending clock mode command..."
 sleep 1
 send_lcars_command_on_rpi "mode-select" "clock"
-echo "[TEST SCRIPT] MQTT message sent via RPi."
 
 # 5. Check logs after MQTT messages and mode switch command
 echo "[TEST SCRIPT] Step 5: Checking logs after sending test messages and mode switch command..."
@@ -143,7 +131,6 @@ check_rpi_logs
 # 6. Restart service again (to test shutdown/startup sequence)
 echo "[TEST SCRIPT] Step 6: Restarting $SERVICE_NAME again on RPi..."
 ssh "$RPI_USER@$RPI_HOST" "sudo systemctl restart $SERVICE_NAME"
-echo "[TEST SCRIPT] $SERVICE_NAME restarted again on RPi."
 
 # 7. Check logs after second restart
 echo "[TEST SCRIPT] Step 7: Checking logs after second service restart..."
