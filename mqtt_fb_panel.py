@@ -659,24 +659,28 @@ def main():
     signal.signal(signal.SIGTERM, bye)
 
     print("Main loop starting. Press Ctrl+C to exit.", flush=True)
+    last_rendered_clock_time_str = "" # To track when clock display needs updating
     try:
         while not _exit_in_progress: # Check _exit_in_progress flag
             _process_touch_event() # Check for touch events first
 
             if current_display_mode == "clock":
-                # Clock mode updates itself based on time, so refresh frequently
-                refresh_display() # This clears and repopulates active_buttons
-
+                # Clock mode: refresh display only when the time string (HH:MM:SS) changes.
                 now = datetime.now()
-                sleep_for_alignment = (1_000_000 - now.microsecond) / 1_000_000.0
-                actual_sleep_time = max(0.01, sleep_for_alignment) # Min 10ms sleep
-                time.sleep(actual_sleep_time)
+                current_time_str = now.strftime("%H:%M:%S")
+
+                if current_time_str != last_rendered_clock_time_str:
+                    refresh_display() # This clears and repopulates active_buttons
+                    last_rendered_clock_time_str = current_time_str
+                
+                # Sleep for a short fixed duration to allow frequent touch processing.
+                time.sleep(0.01) # 10ms sleep
             else:
                 # Event log mode only needs to refresh on new messages (handled by on_mqtt)
                 # or touch events (handled by _process_touch_event -> _handle_button_press -> refresh_display).
                 # So, just sleep for a bit to yield CPU and allow touch/MQTT to be processed.
                 # A short sleep allows responsiveness to touch.
-                time.sleep(0.05) # 50ms sleep, adjust as needed for responsiveness vs CPU usage
+                time.sleep(0.01) # 10ms sleep, consistent with clock mode for responsiveness
 
     except KeyboardInterrupt:
         print("KeyboardInterrupt caught in main loop.", flush=True)
