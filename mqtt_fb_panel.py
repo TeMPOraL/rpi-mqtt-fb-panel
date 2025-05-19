@@ -22,6 +22,7 @@ To move the console off the TFT (if it still appears):
 """
 from __future__ import annotations
 import os, sys, signal, textwrap, argparse, json, socket, time
+from pathlib import Path         # NEW
 from collections import deque
 from datetime import datetime, timezone
 import zoneinfo # For timezone name
@@ -68,12 +69,16 @@ TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
 
+SCREENSHOT_DIR = Path(os.path.expanduser("~")) / "lcars_panel_screenshots"   # NEW
+
 debug_layout_enabled = False
 debug_touch_enabled = False # New state for touch debugging
 last_debug_touch_coords: Optional[Tuple[int, int]] = None # Stores last touch for debug drawing
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
 current_display_mode = "events" # "events" or "clock"
 active_buttons: List[Dict[str, Any]] = [] # Stores {'id': str, 'rect': (x1,y1,x2,y2)}
+
+last_rendered_img: Optional[Image.Image] = None      # NEW – cached frame for screenshots
 
 # Touch input handling
 touch_device: Optional[InputDevice] = None
@@ -131,6 +136,9 @@ def refresh_display():
             for button in active_buttons:
                 draw.rectangle(button['rect'], fill=lc.DEBUG_BOUNDING_BOX_UI_ELEMENT) # Green filled
     # --- End touch debug visuals ---
+
+    global last_rendered_img           # NEW
+    last_rendered_img = img.copy()     # keep a copy of the frame
 
     push(img)
 
@@ -319,6 +327,25 @@ def _handle_button_press(button_id: str):
     if action_taken:
         refresh_display()
 
+# ---------------------------------------------------------------------------
+# Screenshot utility
+# ---------------------------------------------------------------------------
+def _save_screenshot() -> None:
+    """Save the most recently rendered frame as
+       ~/lcars_panel_screenshots/HYYYYMMDD-HHmmss-<mode>.png"""
+    if last_rendered_img is None:
+        print("Screenshot requested but no frame available.", flush=True)
+        return
+
+    SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{datetime.now().strftime('H%Y%m%d-%H%M%S')}-{current_display_mode}.png"
+    filepath = SCREENSHOT_DIR / filename
+    try:
+        last_rendered_img.save(filepath)
+        print(f"Screenshot saved to {filepath}", flush=True)
+    except Exception as exc:
+        print(f"Failed to save screenshot: {exc}", flush=True)
+
 def _process_touch_event():
     global last_touch_x, last_touch_y
     if not touch_device or not ecodes:
@@ -470,6 +497,9 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
                 print("All event log messages CLEARED", flush=True)
                 if current_display_mode == "events": # Only need to re-render if in events mode
                     needs_render = True
+            elif command_suffix == "screenshot":            # NEW branch
+                _save_screenshot()
+                # no UI changes, so leave needs_render = False
             else:
                 print(f"Unknown control command suffix: {command_suffix}", flush=True)
 
