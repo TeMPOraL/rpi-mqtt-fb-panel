@@ -1,7 +1,17 @@
 #+title: MQTT Framebuffer panel for Raspberry Pi 2
 
+[[file:screenshots/H20250520-011817-events.png]]
+
 Something to display MQTT messages and other stuff on a 3.5' TFT screen hooked up to an old Raspberry Pi 2.
 
 Initial version made by ChatGPT o3, because who writes their own code these days anyway.
 
 Continued with help of Gemini 2.5 Pro via Aider.
+
+Also supports actual touch inputs and has a clock mode now.
+
+[[file:screenshots/H20250520-011428-clock.png]]
+
+Next planned features:
+- Sounds
+- A mode to control a non-wifi A/C unit, so I can use it instead of the manufacturer's boring wall panel (and also control it from Home Assistant)
