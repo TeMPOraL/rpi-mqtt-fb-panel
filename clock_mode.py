@@ -134,7 +134,7 @@ def render_clock_content_area(draw, layout, debug_layout_enabled):
 
     date_area_y_start = content_area_y + time_area_height
     date_area_height = content_area_height - time_area_height
-    date_str = datetime.now().strftime("%Y-%m-%d - %A").upper()
+    date_str = datetime.now().strftime("%Y-%m-%d - %A")
     date_font, date_w, date_h = _get_max_font_for_text_and_space(
         draw, date_str, font_path, date_area_height, content_area_width,
         initial_font_size=max(40, int(date_area_height * 0.7))
