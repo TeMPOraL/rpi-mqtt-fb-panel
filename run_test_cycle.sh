@@ -112,6 +112,12 @@ ssh "$RPI_USER@$RPI_HOST" "cd $RPI_PROJECT_DIR && git pull --ff-only -q && sudo 
 echo "[TEST SCRIPT] Step 3: Checking logs after initial service restart..."
 check_rpi_logs
 
+# 3.0 Ensure we're in events 'mode' before sending commands
+echo "[TEST SCRIPT] Step 3.1: Switching to 'events' mode..."
+echo "[TEST SCRIPT] Waiting 1 second before sending mode command..."
+sleep 1
+send_lcars_command_on_rpi "mode-select" "events"
+
 # 3.1 Send test messages with different importance levels
 echo "[TEST SCRIPT] Step 3.1: Sending test messages with different importance levels..."
 send_lcars_data_message_on_rpi "test/info"     '{"message": "Test INFO message from script", "source": "TestScript", "importance": "info"}'
@@ -119,8 +125,8 @@ send_lcars_data_message_on_rpi "test/warning"  '{"message": "Test WARNING messag
 send_lcars_data_message_on_rpi "test/error"    '{"message": "Test ERROR message from script", "source": "TestScript", "importance": "error"}'
 
 # 4. Send MQTT message via RPi to switch to 'clock' mode
-echo "[TEST SCRIPT] Step 4: Sending MQTT message via RPi to switch to 'clock' mode..."
-echo "[TEST SCRIPT] Waiting 1 second before sending clock mode command..."
+echo "[TEST SCRIPT] Step 4: Switching to 'clock' mode..."
+echo "[TEST SCRIPT] Waiting 1 second before sending mode command..."
 sleep 1
 send_lcars_command_on_rpi "mode-select" "clock"
 

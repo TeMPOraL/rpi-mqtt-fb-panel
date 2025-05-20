@@ -65,7 +65,7 @@ MQTT_CONTROL_TOPIC_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", f"lcars/{HOST
 LOG_CONTROL_MESSAGES_STR = os.getenv("LOG_CONTROL_MESSAGES", "true").lower()
 LOG_CONTROL_MESSAGES = LOG_CONTROL_MESSAGES_STR == "true"
 TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
-STARTING_MODE = os.getenv("STARTING_MODE", "events").lower() # "events" or "clock"
+STARTING_MODE = os.getenv("STARTING_MODE", "clock").lower() # "events" or "clock"
 
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
