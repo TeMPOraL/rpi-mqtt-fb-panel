@@ -65,6 +65,7 @@ MQTT_CONTROL_TOPIC_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", f"lcars/{HOST
 LOG_CONTROL_MESSAGES_STR = os.getenv("LOG_CONTROL_MESSAGES", "true").lower()
 LOG_CONTROL_MESSAGES = LOG_CONTROL_MESSAGES_STR == "true"
 TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
+STARTING_MODE = os.getenv("STARTING_MODE", "events").lower() # "events" or "clock"
 
 MAX_MESSAGES_IN_STORE = int(os.getenv("MAX_MESSAGES_IN_STORE", "50")) # Max number of messages to keep
 MESSAGE_AREA_HORIZONTAL_PADDING = lc.PADDING * 2 # Specific padding for the message list area
@@ -75,7 +76,7 @@ debug_layout_enabled = False
 debug_touch_enabled = False # New state for touch debugging
 last_debug_touch_coords: Optional[Tuple[int, int]] = None # Stores last touch for debug drawing
 log_control_messages_enabled = LOG_CONTROL_MESSAGES # Initialized from env, can be changed by MQTT command
-current_display_mode = "events" # "events" or "clock"
+current_display_mode = STARTING_MODE
 active_buttons: List[Dict[str, Any]] = [] # Stores {'id': str, 'rect': (x1,y1,x2,y2)}
 
 last_rendered_img: Optional[Image.Image] = None      # NEW – cached frame for screenshots
@@ -252,7 +253,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                     # These are the target values that, when perceived with the error, should result in the ideal mapping.
                     output_min = -E * D_minus_1 / denominator
                     output_span = D_minus_1**2 / denominator
-                    
+
                     # The rest of the scaling logic remains the same, using these corrected min/span
                     if (r_max - r_min) == 0: # Should have been caught by caller, but defensive check
                         print("Warning: Raw touch range (r_max - r_min) is zero in get_calibrated_scaled_value.", flush=True)
@@ -266,7 +267,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                     # raw_x contributes to screen Y-dim (target: physical_height), use cal_error_y_pixels
                     scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_width, cal_error_x_pixels)
                     scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_height, cal_error_y_pixels)
-                    
+
                     logical_x = physical_width - 1 - scaled_y_input
                     logical_y = scaled_x_input
                 elif lc.ROTATE == 90:
@@ -290,7 +291,7 @@ def _transform_touch_coordinates(raw_x: int, raw_y: int) -> Tuple[int, int]:
                     # raw_y contributes to screen X-dim (logical_y after transformation, target: physical_width), use cal_error_x_pixels
                     scaled_x_input = get_calibrated_scaled_value(raw_x, min_x, max_x, physical_height, cal_error_y_pixels)
                     scaled_y_input = get_calibrated_scaled_value(raw_y, min_y, max_y, physical_width, cal_error_x_pixels)
-                    
+
                     logical_x = physical_height - 1 - scaled_x_input
                     logical_y = physical_width - 1 - scaled_y_input
                 else: # Fallback for unknown lc.ROTATE value
@@ -383,7 +384,7 @@ def _process_touch_event():
                             # For simple tap, acting on press is usually fine.
                             # Consider clearing last_touch_x/y on BTN_TOUCH release if needed.
                             break # Found a button, no need to check others for this press event
-                    
+
                     if debug_touch_enabled and not button_pressed_and_refreshed:
                         # If no button was pressed (which would trigger its own refresh),
                         # but touch debugging is on, refresh to show the touch point.
@@ -699,7 +700,7 @@ def main():
                 if current_time_str != last_rendered_clock_time_str:
                     refresh_display() # This clears and repopulates active_buttons
                     last_rendered_clock_time_str = current_time_str
-                
+
                 # Sleep for a short fixed duration to allow frequent touch processing.
                 time.sleep(0.01) # 10ms sleep
             else:
