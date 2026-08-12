@@ -8,21 +8,21 @@ affected).
 
 ## Milestones
 
-*   [ ] **M0 — Scaffolding:** tree, docs, `panel.env.example`, vendored
+*   [x] **M0 — Scaffolding:** tree, docs, `panel.env.example`, vendored
     DejaVuSans + license, gitignore.
-*   [ ] **M1 — Shims + harness (headless):**
-    *   [ ] `shims/rgb565.py` — LUT quantization, byte-equivalent to the device's `tobytes("raw","BGR;16")` (proven by test).
-    *   [ ] `shims/broker.py` — MiniBroker: wildcard matching, retained store, LWT, per-client delivery thread, drop/restart chaos controls.
-    *   [ ] `shims/fake_paho.py` — paho-mqtt 1.5.x v1-API subset (deliberately **no** `CallbackAPIVersion` attribute).
-    *   [ ] `shims/fake_evdev.py` — faithful python-evdev shapes; tap event queue.
-    *   [ ] `shims/fake_framebuffer.py` — mirrors the real module exactly (push guard, call-time rotation, WIDTH/HEIGHT expression, double-close semantics).
-    *   [ ] `harness.py` — env/font/boot glue, FrameStore, touch inverse-affine injector, state snapshots.
-    *   [ ] `run_virtual.py` — entry point + `Restart=always` re-exec emulation.
-    *   [ ] Tests: RGB565 equivalence; broker semantics; full boot handshake (device log-line order); touch inject flips mode; broker-restart incident regression.
-*   [ ] **M2 — HTTP server + live viewer:** stdlib server (frames, SSE, injection), vanilla-JS viewer with transport abstraction; Playwright checks.
-*   [ ] **M3 — Scenarios:** `snapshot.py` runner + `compare`, scenario files, `replay_scenario.py` for device-side replay.
-*   [ ] **M4 — Fidelity gate (needs user):** Swiss911 in `virtual/fonts/`; compare virtual `BAR_HEIGHT` and golden scenario renders against the device.
-*   [ ] **M5 — Phase 2a:** `--record`, demo recording, `web/replay.html` replayer, Pages setup docs.
+*   [x] **M1 — Shims + harness (headless):**
+    *   [x] `shims/rgb565.py` — LUT quantization for the (dead-code, see observations) 16bpp branch; validated against canonical 5/6/5 math.
+    *   [x] `shims/broker.py` — MiniBroker: wildcard matching, retained store, LWT, per-client delivery thread, drop/restart chaos controls, truthful subscription count.
+    *   [x] `shims/fake_paho.py` — paho-mqtt 1.5.x v1-API subset (deliberately **no** `CallbackAPIVersion` attribute; guarded by test).
+    *   [x] `shims/fake_evdev.py` — faithful python-evdev shapes; tap event queue.
+    *   [x] `shims/fake_framebuffer.py` — mirrors the real module exactly (push guard, call-time rotation, WIDTH/HEIGHT expression, double-close semantics). Defaults 720x480x32.
+    *   [x] `harness.py` — env/font/boot glue, FrameStore, touch inverse-affine injector, state snapshots.
+    *   [x] `run_virtual.py` — entry point + `Restart=always` re-exec emulation.
+    *   [x] Tests (29 + Playwright): broker semantics; full boot handshake reaching retained "online"; touch inject flips mode + republishes retained state; broker-restart incident regression.
+*   [x] **M2 — HTTP server + live viewer:** stdlib server (frames + long-poll, SSE, injection, chaos), vanilla-JS viewer; Playwright e2e (SSE chips, scaled click-to-touch, broker restart via UI).
+*   [x] **M3 — Scenarios:** `snapshot.py` runner + `compare` (golden determinism: two runs at RMSE 0.000), scenario files incl. `broker_restart.json` incident regression, `replay_scenario.py` for device-side replay.
+*   [ ] **M4 — Fidelity gate (needs user):** Swiss911 in `virtual/fonts/`; compare virtual `BAR_HEIGHT` and golden scenario renders against the device (see Open items).
+*   [x] **M5 — Phase 2a:** `--record`, committed demo recording, `web/replay.html` replayer (play/scrub/event markers), Pages setup docs; Playwright-verified against a repo-root static server.
 *   [ ] **M6 — Phase 2b (future):** interactive in-browser panel via Pyodide (same shims; worker + SharedArrayBuffer input ring + coi-serviceworker; broker inline-dispatch mode; cooperative-driver fallback with source-hash drift alarm).
 
 ## Decision log
