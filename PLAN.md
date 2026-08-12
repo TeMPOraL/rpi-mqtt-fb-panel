@@ -82,7 +82,7 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [x] **MQTT Control Command Handling (`on_mqtt`):**
         *   [x] Handle `mode-select` topic suffix with payloads `"events"` or `"clock"`.
         *   [x] Update `current_display_mode` and call `refresh_display()`.
-        *   [x] Log control message to display if enabled.
+        *   [x] Log control message to display if enabled. (Later exempted `mode-select` from this logging — see SPECIFICATION.md §3.4.)
     *   [x] **Button Configuration for Future Touch Input:**
         *   [x] Include unique `id` in `buttons_config` for each button (e.g., `id: 'activate_clock_mode'`).
 *   [x] **Phase D: Testing and Refinement**

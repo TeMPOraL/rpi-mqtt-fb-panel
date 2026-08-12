@@ -62,6 +62,15 @@ from clock_mode import render_clock_full_panel
 HOSTNAME = socket.gethostname()
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/lcars_panel/")
 MQTT_CONTROL_TOPIC_PREFIX = os.getenv("MQTT_CONTROL_TOPIC_PREFIX", f"lcars/{HOSTNAME}/").replace("<hostname>", HOSTNAME)
+# Retained availability topic (MQTT Last Will lives here; see on_mqtt_subscribe
+# for why "online" means "connected AND subscribed", not merely "connected").
+MQTT_AVAILABILITY_TOPIC = os.getenv("MQTT_AVAILABILITY_TOPIC", "lcars/alert-panel/availability").replace("<hostname>", HOSTNAME)
+# Retained display mode state topic. Outbound state reporting only; the panel
+# never subscribes to nor acts on messages published here.
+MQTT_MODE_TOPIC = os.getenv("MQTT_MODE_TOPIC", "lcars/alert-panel/mode").replace("<hostname>", HOSTNAME)
+# Stable client id so broker-side logs can be correlated with this device
+# (an empty id makes the broker assign a random one on every connect).
+MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "lcars-panel-<hostname>").replace("<hostname>", HOSTNAME)
 LOG_CONTROL_MESSAGES_STR = os.getenv("LOG_CONTROL_MESSAGES", "true").lower()
 LOG_CONTROL_MESSAGES = LOG_CONTROL_MESSAGES_STR == "true"
 TOUCH_DEVICE_PATH = os.getenv("TOUCH_DEVICE_PATH") # e.g., /dev/input/event0
@@ -88,6 +97,16 @@ last_touch_y: Optional[int] = None
 
 # Guard that prevents duplicate execution of the shutdown routine.
 _exit_in_progress = False
+
+# MQTT client handle, module-level so touch/main-loop code can publish state.
+mqtt_client: Optional[mqtt.Client] = None
+# Subscription mids awaiting SUBACK for the current connection; retained
+# "online" is announced only once this set drains (connected AND subscribed).
+_pending_sub_mids: set = set()
+# Exit code used by bye(); nonzero makes systemd treat the exit as a failure.
+_exit_code = 0
+# Set from MQTT callbacks (network thread) to ask the main loop to shut down.
+_shutdown_requested = False
 
 # ---------------------------------------------------------------------------
 # Message Dataclass
@@ -318,10 +337,12 @@ def _handle_button_press(button_id: str):
     elif button_id == 'btn_clock_mode' and current_display_mode == "events":
         current_display_mode = "clock"
         print("Switched to CLOCK mode by touch", flush=True)
+        _publish_mode_state()
         action_taken = True
     elif button_id == 'btn_events_mode' and current_display_mode == "clock":
         current_display_mode = "events"
         print("Switched to EVENTS mode by touch", flush=True)
+        _publish_mode_state()
         action_taken = True
     # Add other button IDs here if needed, e.g. 'btn_relative'
 
@@ -427,9 +448,123 @@ def probe(shape: str = "square", fill: bool = False):
     push(img)
 
 # ---------------------------------------------------------------------------
+# systemd integration (sd_notify / watchdog)
+# ---------------------------------------------------------------------------
+def sd_notify(state: str) -> None:
+    """Send an sd_notify(3) state string (e.g. "READY=1", "WATCHDOG=1") to systemd.
+
+    Implemented as a raw datagram to $NOTIFY_SOCKET to avoid an extra
+    dependency; no-op when NOTIFY_SOCKET is unset, so the script still runs
+    standalone during development."""
+    notify_socket = os.getenv("NOTIFY_SOCKET")
+    if not notify_socket:
+        return
+    addr = notify_socket
+    if addr.startswith("@"):  # abstract socket namespace
+        addr = "\0" + addr[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.sendto(state.encode("utf-8"), addr)
+    except Exception as e:
+        print(f"Warning: sd_notify('{state}') failed: {e}", flush=True)
+
+def _watchdog_ping_interval() -> Optional[float]:
+    """Seconds between WATCHDOG=1 pings (WATCHDOG_USEC / 2), or None when the
+    systemd watchdog is not armed for this process."""
+    usec = os.getenv("WATCHDOG_USEC")
+    if not usec:
+        return None
+    watchdog_pid = os.getenv("WATCHDOG_PID")
+    if watchdog_pid and watchdog_pid.isdigit() and int(watchdog_pid) != os.getpid():
+        return None  # watchdog armed for a different process
+    try:
+        return max(int(usec) / 2_000_000.0, 1.0)
+    except ValueError:
+        print(f"Warning: invalid WATCHDOG_USEC value '{usec}'; watchdog pings disabled.", flush=True)
+        return None
+
+# ---------------------------------------------------------------------------
 # MQTT machinery
 # ---------------------------------------------------------------------------
 messages_store = deque(maxlen=MAX_MESSAGES_IN_STORE)
+
+def _publish_mode_state() -> None:
+    """Publish current_display_mode, retained, to MQTT_MODE_TOPIC.
+
+    State reporting only. Safe to call from any thread (paho's publish() is
+    thread-safe); while disconnected the publish is queued and superseded by
+    the fresh publish done after the next reconnect's resubscription."""
+    if mqtt_client is None:
+        return
+    mqtt_client.publish(MQTT_MODE_TOPIC, current_display_mode, qos=1, retain=True)
+
+def _request_restart() -> None:
+    """Ask the main loop to shut down with a nonzero exit code.
+
+    Used by the MQTT "restart" command. paho callbacks run on the network
+    thread, where sys.exit() would only kill that thread — so signal the main
+    loop instead and let it run the regular bye() cleanup path (framebuffer
+    and touch device released, then exit for systemd to restart us)."""
+    global _shutdown_requested, _exit_code
+    _exit_code = 1
+    _shutdown_requested = True
+
+# The callbacks below use the paho-mqtt v1 callback API signatures for MQTTv5
+# (Raspbian bullseye ships paho-mqtt 1.5.x via apt). On paho-mqtt 2.x the
+# client is constructed with CallbackAPIVersion.VERSION1, so the very same
+# signatures apply there too.
+
+def on_mqtt_connect(client: mqtt.Client, userdata: Any, flags, reason_code, properties=None) -> None:
+    """(Re)subscribe on every successful (re)connect and log the outcome.
+
+    paho's auto-reconnect does NOT replay subscriptions, and a broker restart
+    may have wiped the session — subscribing only once at startup once left
+    this panel silently connected-but-deaf for days. Subscribing here, on
+    every connect, is the fix."""
+    if isinstance(flags, dict):  # MQTTv5 connect flags dict in the v1 API
+        session_present = bool(flags.get('session present', 0))
+    else:
+        session_present = bool(getattr(flags, 'session_present', False))
+    print(f"Connected to MQTT broker: reason code '{reason_code}', session present: {session_present}", flush=True)
+
+    if getattr(reason_code, 'value', reason_code) != 0:
+        print(f"MQTT connection rejected by broker (reason code '{reason_code}'); auto-reconnect will retry.", flush=True)
+        return
+
+    _pending_sub_mids.clear()
+    for topic in (f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#",
+                  f"{MQTT_CONTROL_TOPIC_PREFIX.rstrip('/')}/#"):
+        result, mid = client.subscribe(topic)
+        if result == mqtt.MQTT_ERR_SUCCESS:
+            _pending_sub_mids.add(mid)
+            print(f"Subscription requested: {topic} (mid {mid})", flush=True)
+        else:
+            print(f"Error: subscribe request for {topic} failed (rc {result}); 'online' will not be announced.", flush=True)
+
+def on_mqtt_subscribe(client: mqtt.Client, userdata: Any, mid: int, granted_qos, properties=None) -> None:
+    """Track SUBACKs; announce availability once ALL subscriptions confirmed.
+
+    Retained "online" deliberately means "connected AND subscribed" — an LWT
+    alone cannot catch a connected-but-unsubscribed client, which is exactly
+    the failure mode this guards against."""
+    if not isinstance(granted_qos, (list, tuple)):
+        granted_qos = [granted_qos]
+    codes = [getattr(gq, 'value', gq) for gq in granted_qos]
+    if any(code >= 128 for code in codes):  # MQTTv5 reason codes >= 0x80 are failures
+        print(f"Error: broker rejected subscription (mid {mid}, reason codes {codes}).", flush=True)
+        return
+    if mid not in _pending_sub_mids:
+        return
+    _pending_sub_mids.discard(mid)
+    print(f"Subscription confirmed (mid {mid}, granted {codes})", flush=True)
+    if not _pending_sub_mids:
+        client.publish(MQTT_AVAILABILITY_TOPIC, "online", qos=1, retain=True)
+        print(f"All subscriptions confirmed; published retained 'online' to {MQTT_AVAILABILITY_TOPIC}", flush=True)
+        _publish_mode_state()
+
+def on_mqtt_disconnect(client: mqtt.Client, userdata: Any, reason_code, properties=None) -> None:
+    """Log disconnects; reconnection itself is handled by paho's network loop."""
+    print(f"Disconnected from MQTT broker: reason '{reason_code}'. Auto-reconnect will retry (1-60s backoff).", flush=True)
 
 def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
     """Handles incoming MQTT messages, including control messages."""
@@ -437,6 +572,12 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
     try:
         payload_str = msg.payload.decode(errors="ignore").strip()
         print(f"Received message on topic {msg.topic}: '{payload_str}'", flush=True)
+
+        # Ignore our own retained state topics: with the default configuration
+        # they sit under the control prefix wildcard, but they carry outbound
+        # state, not commands.
+        if msg.topic in (MQTT_AVAILABILITY_TOPIC, MQTT_MODE_TOPIC):
+            return
 
         # Check if it's a control message
         if msg.topic.startswith(MQTT_CONTROL_TOPIC_PREFIX):
@@ -485,11 +626,13 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
                     if current_display_mode != "events":
                         current_display_mode = "events"
                         print("Display mode switched to EVENTS", flush=True)
+                        _publish_mode_state()
                         needs_render = True
                 elif payload_str == "clock":
                     if current_display_mode != "clock":
                         current_display_mode = "clock"
                         print("Display mode switched to CLOCK", flush=True)
+                        _publish_mode_state()
                         needs_render = True
                 else:
                     print(f"Unknown payload for mode-select: '{payload_str}'", flush=True)
@@ -501,11 +644,21 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
             elif command_suffix == "screenshot":            # NEW branch
                 _save_screenshot()
                 # no UI changes, so leave needs_render = False
+            elif command_suffix == "restart":
+                if msg.retain:
+                    # A retained restart command would fire on every (re)subscribe
+                    # and put the panel into a restart loop.
+                    print("Ignoring RETAINED restart command.", flush=True)
+                else:
+                    print("RESTART command received; exiting so systemd restarts the panel.", flush=True)
+                    _request_restart()
             else:
                 print(f"Unknown control command suffix: {command_suffix}", flush=True)
 
-            # Log the control command itself as a message if enabled
-            if log_control_messages_enabled:
+            # Log the control command itself as a message if enabled.
+            # mode-select is exempt: the mode change is self-evident on screen,
+            # and logging it just spams the event log between real events.
+            if log_control_messages_enabled and command_suffix != "mode-select":
                 control_message_obj = Message(
                     text=payload_str,
                     source=f"LCARS/{command_suffix}",
@@ -629,51 +782,64 @@ def main():
         refresh_display() # Use new dispatcher
         fb.close(); sys.exit(0)
 
-    # For MQTTv5, providing an empty client_id and setting protocol=mqtt.MQTTv5
-    # should result in a non-persistent session (clean start).
-    # The `clean_session` parameter is not used for MQTTv5 and causes an error.
-    client = mqtt.Client(client_id="", protocol=mqtt.MQTTv5)
-    # If using paho-mqtt v2.x, one might use:
-    # client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="", protocol=mqtt.MQTTv5)
-    # and then set client.connect(..., clean_start=True, ...)
+    # Stable client id and clean_start on every connect: subscriptions are
+    # replayed by on_mqtt_connect anyway, so no server-side session is wanted.
+    if hasattr(mqtt, "CallbackAPIVersion"):
+        # paho-mqtt 2.x: explicitly request the legacy (v1) callback API so a
+        # single set of callback signatures works on both major versions.
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv5)
+    else:
+        # paho-mqtt 1.x (what Raspbian bullseye ships via apt).
+        client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv5)
+    global mqtt_client
+    mqtt_client = client
 
+    client.on_connect = on_mqtt_connect      # (re)subscribes on every connect
+    client.on_subscribe = on_mqtt_subscribe  # announces "online" once subscribed
+    client.on_disconnect = on_mqtt_disconnect
     client.on_message = on_mqtt
     client.username_pw_set(os.getenv("MQTT_USER", "alertpanel"), os.getenv("MQTT_PASS", "secretpassword"))
+    client.reconnect_delay_set(min_delay=1, max_delay=60)
+    # LWT: the broker publishes retained "offline" whenever this connection
+    # dies without a clean DISCONNECT — including our own exit paths, which
+    # deliberately never call disconnect().
+    client.will_set(MQTT_AVAILABILITY_TOPIC, "offline", qos=1, retain=True)
 
+    # Deliberate: a broker unreachable AT STARTUP stays fatal — systemd
+    # (Restart=always, RestartSec=2) turns that into a retry loop with fresh
+    # state. Connection loss AFTER startup is handled in-process by paho's
+    # auto-reconnect plus resubscription in on_mqtt_connect.
     try:
-        print(f"Attempting to connect to MQTT broker: {os.getenv('MQTT_HOST', 'example-host.local')}:{os.getenv('MQTT_PORT', 1883)}", flush=True)
+        print(f"Attempting to connect to MQTT broker: {os.getenv('MQTT_HOST', 'example-host.local')}:{os.getenv('MQTT_PORT', 1883)} as '{MQTT_CLIENT_ID}'", flush=True)
         client.connect(os.getenv("MQTT_HOST", "example-host.local"),
-                       int(os.getenv("MQTT_PORT", 1883)))
+                       int(os.getenv("MQTT_PORT", 1883)),
+                       clean_start=True)
     except Exception as e:
         print(f"Fatal error: Could not connect to MQTT broker: {e}", flush=True)
         fb.close()
         sys.exit(1) # Exit with an error code
 
-    subscription_topic = f"{MQTT_TOPIC_PREFIX.rstrip('/')}/#"
-    client.subscribe(subscription_topic)
-    print(f"Subscribed to data topic: {subscription_topic}", flush=True)
-
-    # Subscribe to control topic
-    control_subscription_topic = f"{MQTT_CONTROL_TOPIC_PREFIX.rstrip('/')}/#"
-    client.subscribe(control_subscription_topic)
-    print(f"Subscribed to control topic: {control_subscription_topic}", flush=True)
-
     # Initial display render after setup
     refresh_display()
 
-    client.loop_start() # Start non-blocking loop
+    client.loop_start() # Start non-blocking loop; on_mqtt_connect subscribes.
     print("MQTT client loop started in background.", flush=True)
+
+    sd_notify("READY=1")
 
     def bye(*_):
         # Ensure this logic runs only once; further calls just finish the exit.
         global _exit_in_progress
         if _exit_in_progress:
-            sys.exit(0)
+            sys.exit(_exit_code)
         _exit_in_progress = True
 
-        print("Exiting...", flush=True)
-        if client and client.is_connected():
-            client.loop_stop()                     # Stop MQTT network thread
+        print(f"Exiting with code {_exit_code}...", flush=True)
+        sd_notify("STOPPING=1")
+        if client:
+            # Stop the network thread WITHOUT a clean DISCONNECT: the broker
+            # then publishes the retained "offline" LWT on our behalf.
+            client.loop_stop()
         blank()                                # Clear screen (safe if FB already closed)
         if touch_device:
             try:
@@ -682,14 +848,26 @@ def main():
             except Exception as e:
                 print(f"Error closing touch device: {e}", flush=True)
         fb.close()                             # Release framebuffer resources
-        sys.exit(0)
+        sys.exit(_exit_code)
     signal.signal(signal.SIGINT, bye)
     signal.signal(signal.SIGTERM, bye)
 
     print("Main loop starting. Press Ctrl+C to exit.", flush=True)
     last_rendered_clock_time_str = "" # To track when clock display needs updating
+    watchdog_interval = _watchdog_ping_interval()
+    if watchdog_interval is not None:
+        print(f"systemd watchdog armed; sending WATCHDOG=1 every {watchdog_interval:.1f}s.", flush=True)
+    next_watchdog_ping = time.monotonic()
     try:
-        while not _exit_in_progress: # Check _exit_in_progress flag
+        # _shutdown_requested is set by the MQTT "restart" command (network
+        # thread); reacting to it here keeps shutdown on the main thread.
+        while not (_exit_in_progress or _shutdown_requested):
+            if watchdog_interval is not None:
+                now_monotonic = time.monotonic()
+                if now_monotonic >= next_watchdog_ping:
+                    sd_notify("WATCHDOG=1")
+                    next_watchdog_ping = now_monotonic + watchdog_interval
+
             _process_touch_event() # Check for touch events first
 
             if current_display_mode == "clock":
