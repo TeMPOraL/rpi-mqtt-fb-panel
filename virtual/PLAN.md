@@ -23,7 +23,15 @@ affected).
 *   [x] **M3 — Scenarios:** `snapshot.py` runner + `compare` (golden determinism: two runs at RMSE 0.000), scenario files incl. `broker_restart.json` incident regression, `replay_scenario.py` for device-side replay.
 *   [ ] **M4 — Fidelity gate (needs user):** Swiss911 in `virtual/fonts/`; compare virtual `BAR_HEIGHT` and golden scenario renders against the device (see Open items).
 *   [x] **M5 — Phase 2a:** `--record`, committed demo recording, `web/replay.html` replayer (play/scrub/event markers), Pages setup docs; Playwright-verified against a repo-root static server.
-*   [ ] **M6 — Phase 2b (future):** interactive in-browser panel via Pyodide (same shims; worker + SharedArrayBuffer input ring + coi-serviceworker; broker inline-dispatch mode; cooperative-driver fallback with source-hash drift alarm).
+*   [x] **M6 — Phase 2b:** interactive in-browser panel via Pyodide — the real
+    `main()` blocking in a module Web Worker (Pyodide >= 314 dropped classic
+    workers), same shims with `fake_paho` inline-pump mode (no threads in
+    wasm) and an evdev `poll_hook` heartbeat, SharedArrayBuffer input ring
+    (64x4KB slots), vendored coi-serviceworker for Pages, drag-drop Swiss911
+    persisted in IndexedDB, `serve_pages.py` local COI server,
+    `fetch_pyodide_dist.py` hermetic mirror, Playwright e2e (boot, clock
+    ticks, SAB mqtt/touch, in-browser broker-restart regression). The
+    cooperative-driver fallback was NOT needed — the SAB approach works.
 
 ## Decision log
 
@@ -34,6 +42,14 @@ affected).
 - **Determinism policy**: golden scenarios use events mode with explicit `timestamp` payload fields; clock mode is not golden-able (renders `datetime.now()`).
 - **Live vs retained delivery flags**: live fan-out delivers `retain=0` even for retained publishes; retained-store delivery on subscribe uses `retain=1` [MQTT-3.3.1-9]. This is what makes the panel's "ignore RETAINED restart" guard behave identically to Mosquitto.
 - **Touch injection inverts the real transform numerically** (affine fit from 3 probe points through `_transform_touch_coordinates`): zero logic duplication, stays correct if calibration constants change.
+- **Pyodide input via SharedArrayBuffer ring, not postMessage**: the worker is
+  permanently blocked inside the real `main()` and never services its event
+  loop; SAB memory reads work regardless. Frames out are fine as postMessage
+  (sending from a blocked worker is allowed; receiving is not).
+- **Pyodide runtime pinned to v314.0.4** (Pillow 12.2). CDN default; hermetic
+  tests use a local mirror (`fetch_pyodide_dist.py`) — the sandbox egress
+  proxy resets Chromium's TLS to the CDN (curl works; browser-only quirk),
+  and hermetic tests are better anyway. User browsers load the CDN directly.
 
 ## Observations about the panel code (not fixed here; candidates for later)
 

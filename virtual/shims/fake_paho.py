@@ -17,6 +17,7 @@ while the main loop renders — the harness must not serialize that).
 import itertools
 import queue
 import threading
+import time
 from typing import Any, Optional
 
 from virtual.shims.broker import MiniBroker
@@ -30,11 +31,23 @@ MQTT_ERR_CONN_LOST = 7
 # NOTE: no CallbackAPIVersion here, on purpose (see module docstring).
 
 _BROKER: Optional[MiniBroker] = None
+# Inline mode (Pyodide: no threads): loop_start() registers synchronously and
+# events are processed by explicit pump_all() calls instead of a network
+# thread. CPython keeps the threaded default, preserving device threading.
+_INLINE = False
+_inline_clients = []
 
 
-def configure(broker: MiniBroker) -> None:
-    global _BROKER
+def configure(broker: MiniBroker, inline: bool = False) -> None:
+    global _BROKER, _INLINE
     _BROKER = broker
+    _INLINE = inline
+
+
+def pump_all(max_events: int = 100) -> None:
+    """Inline mode only: process queued broker events on the calling thread."""
+    for client in list(_inline_clients):
+        client._pump(max_events)
 
 
 _REASON_NAMES = {
@@ -101,6 +114,8 @@ class Client:
         self._connected = threading.Event()
         self._connect_requested = False
         self._events: Optional["queue.Queue"] = None
+        self._inline_backoff = self._reconnect_min
+        self._inline_retry_at = 0.0
 
         self.on_connect = None
         self.on_subscribe = None
@@ -136,7 +151,14 @@ class Client:
         return MQTT_ERR_SUCCESS
 
     def loop_start(self) -> None:
-        if self._thread is not None or not self._connect_requested:
+        if not self._connect_requested:
+            return
+        if _INLINE:
+            if self not in _inline_clients:
+                _inline_clients.append(self)
+                self._inline_register()
+            return
+        if self._thread is not None:
             return
         self._stop.clear()
         self._thread = threading.Thread(target=self._network_loop,
@@ -144,6 +166,8 @@ class Client:
         self._thread.start()
 
     def loop_stop(self) -> None:
+        if _INLINE and self in _inline_clients:
+            _inline_clients.remove(self)
         self._stop.set()
         if self._thread is not None and self._thread is not threading.current_thread():
             self._thread.join(timeout=5)
@@ -177,7 +201,32 @@ class Client:
         _BROKER.publish("panel", topic, _to_bytes(payload), qos, retain)
         return MQTTMessageInfo(mid)
 
-    # -- network thread -------------------------------------------------------
+    # -- event dispatch (shared by the network thread and inline pump) --------
+
+    def _dispatch_event(self, ev) -> bool:
+        """Deliver one broker event via the v1 callbacks. Returns True if the
+        event was a disconnect."""
+        kind = ev[0]
+        if kind == "connack":
+            self._connected.set()
+            flags = {"session present": 1 if ev[1] else 0}
+            self._safe_call("on_connect", self.on_connect,
+                            self, self._userdata, flags, ReasonCode(0), None)
+        elif kind == "suback":
+            self._safe_call("on_subscribe", self.on_subscribe,
+                            self, self._userdata, ev[1], [ReasonCode(ev[2])], None)
+        elif kind == "msg":
+            msg = MQTTMessage(topic=ev[1], payload=ev[2], qos=ev[3], retain=ev[4])
+            self._safe_call("on_message", self.on_message,
+                            self, self._userdata, msg)
+        elif kind == "disconnect":
+            self._connected.clear()
+            self._safe_call("on_disconnect", self.on_disconnect,
+                            self, self._userdata, ev[1], None)
+            return True
+        return False
+
+    # -- network thread (CPython) ---------------------------------------------
 
     def _network_loop(self) -> None:
         backoff = self._reconnect_min
@@ -201,25 +250,38 @@ class Client:
                     ev = events.get(timeout=0.1)
                 except queue.Empty:
                     continue
-                kind = ev[0]
-                if kind == "connack":
-                    self._connected.set()
+                if ev[0] == "connack":
                     backoff = self._reconnect_min
-                    flags = {"session present": 1 if ev[1] else 0}
-                    self._safe_call("on_connect", self.on_connect,
-                                    self, self._userdata, flags, ReasonCode(0), None)
-                elif kind == "suback":
-                    self._safe_call("on_subscribe", self.on_subscribe,
-                                    self, self._userdata, ev[1], [ReasonCode(ev[2])], None)
-                elif kind == "msg":
-                    msg = MQTTMessage(topic=ev[1], payload=ev[2], qos=ev[3], retain=ev[4])
-                    self._safe_call("on_message", self.on_message,
-                                    self, self._userdata, msg)
-                elif kind == "disconnect":
-                    self._connected.clear()
-                    disconnected = True
-                    self._safe_call("on_disconnect", self.on_disconnect,
-                                    self, self._userdata, ev[1], None)
+                disconnected = self._dispatch_event(ev)
+
+    # -- inline pump (Pyodide: single-threaded) -------------------------------
+
+    def _inline_register(self) -> None:
+        self._events = _BROKER.register_session(self._client_id, lwt=self._lwt)
+        if self._events is None:
+            self._inline_retry_at = time.monotonic() + self._inline_backoff
+            self._inline_backoff = min(self._inline_backoff * 2, self._reconnect_max)
+
+    def _pump(self, max_events: int = 100) -> None:
+        if self._events is None:
+            if time.monotonic() >= getattr(self, "_inline_retry_at", 0):
+                self._inline_register()
+            if self._events is None:
+                return
+        for _ in range(max_events):
+            try:
+                ev = self._events.get_nowait()
+            except queue.Empty:
+                return
+            if ev[0] == "connack":
+                self._inline_backoff = self._reconnect_min
+            if self._dispatch_event(ev):
+                # Disconnected: schedule an inline reconnect with backoff.
+                self._events = None
+                self._inline_retry_at = time.monotonic() + self._inline_backoff
+                self._inline_backoff = min(self._inline_backoff * 2,
+                                           self._reconnect_max)
+                return
 
     @staticmethod
     def _safe_call(name, callback, *args) -> None:

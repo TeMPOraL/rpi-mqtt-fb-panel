@@ -35,6 +35,7 @@ var Viewer = (function () {
 
   function onState(s) {
     state = s;
+    window.__vpState = s;  // exposed for automated tests
     if (s.dims && s.dims.logical_w) { logicalW = s.dims.logical_w; logicalH = s.dims.logical_h; applyZoom(); }
     setChip("chip-conn", "CONN: " + (s.connected ? "UP" : "DOWN"), s.connected);
     var avail = s.availability || "—";

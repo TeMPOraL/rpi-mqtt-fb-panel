@@ -70,6 +70,36 @@ device's `screenshot` command saves, for apples-to-apples comparison).
 `snapshot.py compare`. Geometry should match exactly when using the same font;
 small anti-aliasing differences remain (device renders with Pillow 8.1.2).
 
+## The whole panel in your browser (Pyodide)
+
+`virtual/web/panel.html` runs the **same unmodified panel code entirely
+client-side**: Python + Pillow via Pyodide (pinned version, loaded from the
+jsdelivr CDN, ~15MB on first visit then cached), the same shims, an inline
+(single-threaded) broker mode, and the same viewer UI. No server, no install —
+works straight from GitHub Pages:
+
+```
+https://<user>.github.io/rpi-mqtt-fb-panel/virtual/web/panel.html
+```
+
+- The real blocking `main()` runs in a module Web Worker; frames stream out
+  via postMessage, input (touch/MQTT/chaos) goes in through a
+  SharedArrayBuffer ring drained by the shims' evdev poll hook every 10ms.
+- SharedArrayBuffer needs cross-origin isolation: the vendored
+  `coi-serviceworker.js` provides it on Pages (the very first visit reloads
+  itself once). Locally, `python3 virtual/serve_pages.py` serves the repo
+  with proper COOP/COEP headers instead.
+- Font: drop the device's Swiss911 `.ttf` onto the page once (persisted in
+  your browser's IndexedDB only — never uploaded); DejaVu fallback otherwise.
+- The broker-chaos buttons work here too — the 2026 incident is reproducible
+  in a browser tab.
+- Divergences vs. the local harness: single-threaded MQTT callback delivery
+  (no cross-thread races; the CPython harness remains the threading-fidelity
+  gate), and the panel restart command cold-restarts the whole worker.
+- Hermetic testing / self-hosting: `python3 virtual/fetch_pyodide_dist.py`
+  mirrors the runtime into `virtual/.pyodide-dist/` (gitignored), then
+  `panel.html?pyodide=local` uses it instead of the CDN.
+
 ## Recordings on GitHub Pages (share without pulling)
 
 `snapshot.py run --record` writes `virtual/recordings/<name>/`. Committed

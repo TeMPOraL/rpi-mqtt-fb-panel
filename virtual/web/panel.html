@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCARS Virtual Panel — In-Browser (Pyodide)</title>
+<script src="js/coi-serviceworker.js"></script>
+<link rel="stylesheet" href="css/lcars.css">
+<style>
+  #boot-status { color: #66CCFF; font-size: .8rem; padding: .3rem 1rem; white-space: pre-wrap; }
+  #font-row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+  #font-status { color: #CC99FF; font-size: .78rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="lcars-title">LCARS VIRTUAL PANEL — IN-BROWSER</div>
+  <div class="chips">
+    <span class="chip" id="chip-conn">CONN: —</span>
+    <span class="chip" id="chip-avail">AVAIL: —</span>
+    <span class="chip" id="chip-mode">MODE: —</span>
+    <span class="chip" id="chip-seq">FRAME: 0</span>
+  </div>
+</header>
+<div id="boot-status">booting…</div>
+
+<main>
+  <section class="screen-wrap">
+    <img id="screen" alt="panel framebuffer" title="Click = touch">
+    <div class="screen-hint" id="screen-hint">the whole panel runs in your browser via
+      Pyodide — first load downloads ~15MB, then it's cached</div>
+    <div class="banner hidden" id="respawn-banner">panel restarting…</div>
+    <label class="zoom">zoom
+      <select id="zoom">
+        <option value="0.75">75%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.5">150%</option>
+        <option value="2">200%</option>
+      </select>
+    </label>
+  </section>
+
+  <aside class="controls">
+    <h2>Font</h2>
+    <div id="font-row">
+      <input type="file" id="font-file" accept=".ttf">
+      <span id="font-status">no LCARS font stored — using DejaVu fallback</span>
+    </div>
+    <p class="hint">Drop in Swiss-911-Ultra-Compressed-BT-Regular.ttf (from the
+    device) for device-exact layout. Stored locally in your browser only.</p>
+
+    <h2>Panel commands</h2>
+    <div class="row">
+      <button data-cmd="mode-select" data-payload="events">EVENTS MODE</button>
+      <button data-cmd="mode-select" data-payload="clock">CLOCK MODE</button>
+    </div>
+    <div class="row">
+      <button data-cmd="clear-events" data-payload="">CLEAR EVENTS</button>
+      <button data-cmd="screenshot" data-payload="">SCREENSHOT</button>
+    </div>
+    <div class="row">
+      <button data-cmd="debug-layout" data-payload="enable">DBG LAYOUT ON</button>
+      <button data-cmd="debug-layout" data-payload="disable">OFF</button>
+      <button data-cmd="debug-touch" data-payload="enable">DBG TOUCH ON</button>
+      <button data-cmd="debug-touch" data-payload="disable">OFF</button>
+    </div>
+    <div class="row">
+      <button id="btn-restart" class="danger" data-cmd="restart" data-payload="now">RESTART PANEL</button>
+    </div>
+
+    <h2>Sample events</h2>
+    <div class="row">
+      <button class="sample" data-importance="info">INFO</button>
+      <button class="sample warn" data-importance="warning">WARNING</button>
+      <button class="sample err" data-importance="error">ERROR</button>
+    </div>
+
+    <h2>Publish</h2>
+    <form id="publish-form">
+      <input id="pub-topic" placeholder="topic" spellcheck="false">
+      <input id="pub-payload" placeholder="payload (raw or JSON)" spellcheck="false">
+      <label class="inline"><input type="checkbox" id="pub-retain"> retain</label>
+      <button type="submit">SEND</button>
+    </form>
+
+    <h2>Broker chaos</h2>
+    <div class="row">
+      <button id="btn-drop" class="warnbtn">DROP CONNECTION</button>
+      <button id="btn-broker-restart" class="warnbtn">RESTART BROKER</button>
+    </div>
+    <p class="hint">Restart broker = sessions wiped, retained kept — the 2026
+    incident, reproducible in your browser tab.</p>
+
+    <h2>State</h2>
+    <table class="state-table" id="retained-table">
+      <thead><tr><th>retained topic</th><th>value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>Recent panel publishes</h3>
+    <ul id="publish-log"></ul>
+  </aside>
+</main>
+
+<script src="js/transport_pyodide.js"></script>
+<script src="js/viewer.js"></script>
+<script>
+(function () {
+  var status = document.getElementById("boot-status");
+
+  function setStatus(text) { status.textContent = text; }
+
+  // --- tiny IndexedDB store for the user-provided LCARS font ---
+  function fontDb() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open("lcars-virtual", 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore("fonts"); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function loadFont() {
+    return fontDb().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction("fonts").objectStore("fonts").get("swiss911");
+        tx.onsuccess = function () { resolve(tx.result || null); };
+        tx.onerror = function () { resolve(null); };
+      });
+    }).catch(function () { return null; });
+  }
+  function saveFont(buf) {
+    return fontDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("fonts", "readwrite");
+        tx.objectStore("fonts").put(buf, "swiss911");
+        tx.oncomplete = resolve;
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  document.getElementById("font-file").addEventListener("change", function (ev) {
+    var file = ev.target.files[0];
+    if (!file) return;
+    file.arrayBuffer().then(saveFont).then(function () {
+      setStatus("font stored — reloading with device-exact layout…");
+      location.reload();
+    });
+  });
+
+  if (!window.crossOriginIsolated) {
+    setStatus("crossOriginIsolated is false — SharedArrayBuffer unavailable.\n" +
+      "On first visit the bundled service worker installs and the page should " +
+      "reload itself once; if you see this persistently, hard-reload (Ctrl+F5) " +
+      "or check that js/coi-serviceworker.js is being served.");
+    return;
+  }
+
+  // Device-parity environment (mirrors virtual/panel.env.example).
+  var env = {
+    MQTT_TOPIC_PREFIX: "home/alert/",
+    MQTT_CONTROL_TOPIC_PREFIX: "lcars/alert-panel/",
+    MQTT_AVAILABILITY_TOPIC: "lcars/alert-panel/availability",
+    MQTT_MODE_TOPIC: "lcars/alert-panel/mode",
+    MQTT_CLIENT_ID: "lcars-panel-browser",
+    MQTT_HOST: "virtual-broker",
+    STARTING_MODE: "clock",
+    LOG_CONTROL_MESSAGES: "true",
+    MAX_MESSAGES_IN_STORE: "50",
+    DISPLAY_ROTATE: "0",
+    TOUCH_DEVICE_PATH: "/dev/input/event0",
+  };
+
+  // ?pyodide=local serves the runtime from a local mirror (hermetic tests /
+  // self-hosting) instead of the pinned CDN.
+  var pyodideBase = null;
+  if (new URLSearchParams(location.search).get("pyodide") === "local") {
+    pyodideBase = "../.pyodide-dist/";
+  }
+
+  loadFont().then(function (swissFont) {
+    if (swissFont) {
+      document.getElementById("font-status").textContent =
+        "Swiss911 stored in this browser — device-exact layout";
+    }
+    var transport = TransportPyodide({ env: env, swissFont: swissFont,
+                                       pyodideBase: pyodideBase });
+    transport.onLog(function (line) { setStatus(line); });
+    Viewer.init(transport);
+  });
+})();
+</script>
+</body>
+</html>

@@ -44,6 +44,12 @@ class _Backing:
 
 _registry: Dict[str, _Backing] = {}
 
+# Optional hook invoked at the top of every InputDevice.read_one() call — the
+# panel's main loop polls read_one() every ~10ms, which makes this the natural
+# heartbeat for single-threaded environments (Pyodide) to drain browser input
+# and pump the inline MQTT client. Unused (None) under CPython.
+poll_hook = None
+
 
 def register_device(path: str = "/dev/input/event0",
                     name: str = "virtual-lcars-touchscreen",
@@ -88,6 +94,8 @@ class InputDevice:
         }
 
     def read_one(self):
+        if poll_hook is not None:
+            poll_hook()
         with self._backing.lock:
             if self._backing.events:
                 return self._backing.events.popleft()

@@ -31,6 +31,10 @@ Headless scenario runs, golden-image comparison, device-side replay for
 fidelity checks, and browser-replayable committed recordings (viewable via
 GitHub Pages) are included — see =virtual/README.md=.
 
+There is also a fully client-side variant: =virtual/web/panel.html= runs the
+same unmodified panel code entirely in the browser via Pyodide (works
+straight from GitHub Pages, no install at all).
+
 * MQTT robustness & operations
 
 The MQTT layer is hardened against broker restarts. Previously, a Mosquitto restart that wiped sessions would leave the panel silently connected-but-subscribed-to-nothing (paho's auto-reconnect does not replay subscriptions). Now:

@@ -3,3 +3,4 @@ fonts/*.ttf
 !fonts/DejaVuSans.ttf
 out/
 __pycache__/
+.pyodide-dist/
