@@ -1,0 +1,4 @@
+# Virtual panel harness dependencies. Note: numpy is NOT needed (the panel
+# itself never uses it; it is a stale entry in the root requirements.txt).
+Pillow
+tzlocal

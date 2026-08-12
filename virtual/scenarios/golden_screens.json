@@ -1,0 +1,19 @@
+{
+  "name": "golden_screens",
+  "description": "Deterministic events-mode render for golden comparison (explicit timestamps; approximates the content style of screenshots/H20250520-011817-events.png). Run twice: outputs must be pixel-identical. With the device's Swiss911 font in virtual/fonts/, compare against a device screenshot produced by replay_scenario.py.",
+  "env": {"STARTING_MODE": "events", "LOG_CONTROL_MESSAGES": "false"},
+  "steps": [
+    {"do": "mqtt", "topic": "home/alert/test/info",
+     "payload": {"message": "Test INFO message from script", "source": "TestScript",
+                 "importance": "info", "timestamp": "2025-05-20T01:17:00"}},
+    {"do": "mqtt", "topic": "home/alert/test/warning",
+     "payload": {"message": "Test WARNING message from script", "source": "TestScript",
+                 "importance": "warning", "timestamp": "2025-05-20T01:17:30"}},
+    {"do": "mqtt", "topic": "home/alert/test/error",
+     "payload": {"message": "Test ERROR message from script", "source": "TestScript",
+                 "importance": "error", "timestamp": "2025-05-20T01:18:00"}},
+    {"do": "wait_state", "until": {"messages_in_store": 3}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 300},
+    {"do": "capture", "name": "golden_events", "source": "panel"}
+  ]
+}

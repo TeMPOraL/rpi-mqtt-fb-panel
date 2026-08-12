@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCARS Panel — Recording Replay</title>
+<link rel="stylesheet" href="css/lcars.css">
+<style>
+  .timeline { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; flex-wrap: wrap; }
+  .timeline input[type=range] { flex: 1; min-width: 200px; accent-color: #FF9D00; }
+  .timeline .time { color: #FF9D00; min-width: 7rem; font-variant-numeric: tabular-nums; }
+  #event-list { list-style: none; padding: 0; margin: .5rem 0; font-size: .8rem; max-width: 720px; }
+  #event-list li { color: #CC99FF; border-bottom: 1px solid #222; padding: .15rem .3rem; cursor: pointer; }
+  #event-list li:hover { background: #1a1a1a; }
+  #event-list li .t { color: #66CCFF; margin-right: .6rem; font-variant-numeric: tabular-nums; }
+  #rec-meta { color: #888; font-size: .8rem; margin-top: .3rem; max-width: 720px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="lcars-title">LCARS PANEL — RECORDING REPLAY</div>
+  <div class="chips">
+    <span class="chip" id="chip-rec">REC: —</span>
+    <span class="chip" id="chip-frame">FRAME: 0/0</span>
+  </div>
+</header>
+<main>
+  <section class="screen-wrap">
+    <img id="screen" alt="recorded frame">
+    <div class="screen-hint" id="hint">loading recording…</div>
+    <div class="timeline">
+      <button id="play">PLAY</button>
+      <select id="speed">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+      <input type="range" id="scrub" min="0" max="0" value="0" step="1">
+      <span class="time" id="time">0.0s / 0.0s</span>
+    </div>
+    <div id="rec-meta"></div>
+    <h2 style="color:#FF9D00;font-size:.85rem;letter-spacing:.2em;">EVENTS (click to jump)</h2>
+    <ul id="event-list"></ul>
+  </section>
+</main>
+<script src="js/replay.js"></script>
+</body>
+</html>

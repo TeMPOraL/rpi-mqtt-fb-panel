@@ -1,0 +1,19 @@
+{
+  "name": "touch_walkthrough",
+  "description": "Touch-driven mode switching through the panel's real transform: events -> CLOCK button -> clock -> EVENTS button -> events.",
+  "env": {"STARTING_MODE": "events", "LOG_CONTROL_MESSAGES": "false"},
+  "steps": [
+    {"do": "wait_frame", "timeout_ms": 3000},
+    {"do": "capture", "name": "events_start", "source": "frame"},
+    {"do": "touch", "x": 630, "y": 463},
+    {"do": "wait_state", "until": {"mode": "clock", "mode_retained": "clock"},
+     "timeout_ms": 3000},
+    {"do": "wait_frame", "timeout_ms": 3000},
+    {"do": "capture", "name": "clock_after_touch", "source": "frame"},
+    {"do": "touch", "x": 630, "y": 463},
+    {"do": "wait_state", "until": {"mode": "events", "mode_retained": "events"},
+     "timeout_ms": 3000},
+    {"do": "wait_frame", "timeout_ms": 3000},
+    {"do": "capture", "name": "events_after_touch", "source": "frame"}
+  ]
+}

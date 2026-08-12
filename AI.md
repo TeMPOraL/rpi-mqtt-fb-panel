@@ -120,4 +120,5 @@ This section outlines the core files of the project.
 *   `PLAN.md`: Phased implementation plan for ongoing development.
 *   `README.org`: General project overview and setup instructions.
 *   `AI.md`: This file, containing guidelines and notes for AI collaboration.
+*   `virtual/`: Development harness that runs the unmodified panel code off-device (fake framebuffer/evdev/paho via sys.modules pre-insertion, browser viewer, scenario runner, recordings replayer). Has its own `PLAN.md` and `README.md`; never imported by on-device code.
 
