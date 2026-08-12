@@ -186,3 +186,12 @@ class MiniBroker:
     def is_connected(self, client_id: str) -> bool:
         with self._lock:
             return client_id in self._sessions
+
+    def subscription_count(self, client_id: str) -> int:
+        """Active subscription filters for a client; 0 after a broker restart
+        until the client resubscribes. This is the truthful "actually
+        subscribed" signal — retained availability alone can lie right after
+        a restart (the pre-restart retained 'online' persists)."""
+        with self._lock:
+            session = self._sessions.get(client_id)
+            return len(session.subscriptions) if session else 0

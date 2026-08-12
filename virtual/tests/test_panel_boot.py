@@ -128,9 +128,10 @@ def test_broker_restart_incident_regression(panel):
     resubscribe and keep receiving messages (it once stayed deaf for 10 days)."""
     port = panel["port"]
     _post(port, "/broker/restart", {})
-    _wait_until(lambda: _get_json(port, "/state")["connected"] is True
-                and _get_json(port, "/state")["availability"] == "online",
-                timeout=15)
+    # NOTE: retained availability still reads "online" from before the restart
+    # — the truthful "resubscribed" signal is the broker-side subscription
+    # count going 0 -> 2 again.
+    _wait_until(lambda: _get_json(port, "/state")["subscriptions"] == 2, timeout=15)
     before = _get_json(port, "/state")["messages_in_store"]
     _post(port, "/mqtt", {"topic": "home/alert/after-restart",
                           "payload": {"message": "delivered after broker restart",

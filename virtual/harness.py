@@ -297,9 +297,11 @@ class VirtualPanel:
         mode_topic = os.environ.get("MQTT_MODE_TOPIC", "")
         client = getattr(panel, "mqtt_client", None) if panel else None
         lc = sys.modules.get("lcars_constants")
+        client_id = os.environ.get("MQTT_CLIENT_ID", "")
         return {
             "mode": getattr(panel, "current_display_mode", None) if panel else None,
             "connected": bool(client.is_connected()) if client else False,
+            "subscriptions": self.broker.subscription_count(client_id),
             "availability": retained.get(availability_topic),
             "mode_retained": retained.get(mode_topic),
             "retained": retained,
