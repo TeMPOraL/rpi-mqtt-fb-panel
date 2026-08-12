@@ -4,9 +4,16 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# The panel speaks sd_notify natively (READY=1 on startup, WATCHDOG=1 pings
+# from the main loop); no external helper needed.
+Type=notify
+WatchdogSec=30
 EnvironmentFile=/home/pi/.config/mqtt_alert_panel.env
 ExecStart=/usr/bin/env FBDEV=/dev/fb0 /usr/bin/python3 /home/pi/mqtt_fb_panel.py
-Restart=on-failure
+# Always restart: covers clean crashes, watchdog kills, and the MQTT "restart"
+# control command (which exits nonzero on purpose).
+Restart=always
+RestartSec=2
 User=pi
 
 [Install]

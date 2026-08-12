@@ -28,7 +28,9 @@
     *   `MQTT_USER`: Username for MQTT authentication.
     *   `MQTT_PASS`: Password for MQTT authentication.
     *   `MQTT_TOPIC_PREFIX`: The base topic path for wildcard subscription (e.g., `home/lcars_panel/`). The panel will subscribe to `MQTT_TOPIC_PREFIX#`.
-*   **Behavior:** Connects to the specified MQTT broker and subscribes to all topics under the given prefix. Handles connection retries.
+    *   `MQTT_CLIENT_ID`: Stable client id (default `lcars-panel-<hostname>`) so broker-side logs can be correlated with the device.
+*   **Behavior:** Connects to the specified MQTT broker with a clean session (`clean_start=True`) and subscribes to all topics under the data and control prefixes **from the `on_connect` callback**, i.e. on every (re)connect. This matters because paho's auto-reconnect does not replay subscriptions; a broker restart that wipes sessions would otherwise leave the panel connected but deaf. Reconnects are retried automatically with 1–60s exponential backoff; connects (including reason code and session-present flag), disconnects, and subscription confirmations are logged. A broker that is unreachable at startup is fatal (exit code 1) — systemd's restart policy turns that into a retry loop.
+*   **Availability (LWT):** A retained Last Will of `offline` is registered on `MQTT_AVAILABILITY_TOPIC`. Retained `online` is published only after **all** subscriptions are confirmed via SUBACK, so `online` means "connected AND subscribed", not merely "connected". The panel ignores messages arriving on its own state topics (availability, mode), which sit under the control wildcard with the default configuration.
 
 ### 3.2. Message Format and Parsing
 *   **Format:** JSON.
@@ -155,6 +157,10 @@
             *   Payload `"clock"`: Switches the display to Clock mode.
         *   Topic Suffix: `clear-events` (Implemented)
             *   Payload: (any, or empty) Clears all messages from the event log display.
+        *   Topic Suffix: `screenshot` (Implemented)
+            *   Payload: (any, or empty) Saves the most recently rendered frame as a PNG under `~/lcars_panel_screenshots/`.
+        *   Topic Suffix: `restart` (Implemented)
+            *   Payload: (any, or empty; **must not be retained** — retained restart commands are ignored to prevent restart loops) Cleans up (framebuffer, touch device) and exits with a nonzero code so systemd restarts the service.
     *   **Layout Debugging Visuals:** (Implemented)
         *   When enabled, all standard LCARS UI elements (bars, endcaps, buttons, text elements drawn by `draw_lcars_shape` and `draw_text_in_rect`) will have their bounding boxes rendered as a 1-pixel green outline.
         *   Additionally, the defined columns within the message display area (Source, Message, Timestamp) will have their bounding boxes rendered as a 1-pixel pink outline. A blue vertical line indicates the calculated message wrapping point in the message column.
@@ -182,6 +188,9 @@ Environment variables will be the primary method of configuration, loaded from a
 *   `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASS`
 *   `MQTT_TOPIC_PREFIX`
 *   `MQTT_CONTROL_TOPIC_PREFIX` (e.g., `lcars/alert-panel/` or `lcars/<hostname>/`)
+*   `MQTT_AVAILABILITY_TOPIC` (retained availability/LWT topic, default `lcars/alert-panel/availability`; `<hostname>` placeholder supported)
+*   `MQTT_MODE_TOPIC` (retained display mode state topic, default `lcars/alert-panel/mode`; state reporting only, never subscribed to; `<hostname>` placeholder supported)
+*   `MQTT_CLIENT_ID` (stable MQTT client id, default `lcars-panel-<hostname>`)
 *   `LOG_CONTROL_MESSAGES` (boolean, e.g., `true` or `false`, defaults to `true`. Controls if messages from `MQTT_CONTROL_TOPIC_PREFIX` are displayed in the event log)
 *   `LCARS_FONT_PATH` (Path to the LCARS font file)
 *   `MAX_MESSAGES_IN_STORE` (Integer, maximum number of messages to keep in the rolling display buffer)
@@ -209,7 +218,7 @@ Environment variables will be the primary method of configuration, loaded from a
     *   `numpy`
     *   `python-evdev` (for touchscreen input)
     *   LCARS-style `.ttf` font file (user-provided).
-*   **Service Management:** Designed to be run as a systemd service, with an example service file provided.
+*   **Service Management:** Designed to be run as a systemd service, with an example service file provided. The unit uses `Type=notify` with `WatchdogSec=30` (the panel sends `READY=1` after startup and `WATCHDOG=1` from the main render loop at `WATCHDOG_USEC/2` intervals, via a dependency-free raw-datagram `sd_notify` implementation that no-ops outside systemd), plus `Restart=always` / `RestartSec=2` so crashes, watchdog kills, startup connect failures, and the MQTT `restart` command all lead to an automatic restart.
 
 ## 5. Non-Goals (Initially)
 *   Complex animations beyond simple scrolling.

@@ -143,6 +143,26 @@ This document outlines the phased implementation plan for enhancing the MQTT Ale
     *   [ ] Update button visual state if possible (e.g., highlight).
 *   [ ] **Note:** The "CLOCK" button's primary function (mode switching) is covered in Phase 7 (Touchscreen Input).
 
+## Phase 9: MQTT Hardening & Observability (Complete)
+Root cause addressed: subscriptions were made once in `main()` with no `on_connect` callback, so a broker restart that wiped sessions left the panel silently connected-but-unsubscribed (keepalive healthy, no messages) for days.
+*   [x] **Re-subscription on every (re)connect:**
+    *   [x] `on_connect` callback performs both wildcard subscribes and logs reason code + session-present flag.
+    *   [x] `on_disconnect` callback logs the disconnect reason.
+    *   [x] `reconnect_delay_set(min_delay=1, max_delay=60)`.
+    *   [x] Inline subscribes removed from `main()`.
+    *   [x] Stable `MQTT_CLIENT_ID` (default `lcars-panel-<hostname>`) + `clean_start=True`.
+*   [x] **Availability via LWT with subscription-confirmed "online":**
+    *   [x] Retained LWT `offline` on `MQTT_AVAILABILITY_TOPIC` set before connect.
+    *   [x] Retained `online` published only after all SUBACKs confirm (tracked via mids in `on_subscribe`).
+    *   [x] Panel ignores its own state topics arriving via the control wildcard.
+*   [x] **Remote restart + systemd watchdog:**
+    *   [x] `restart` control command: main loop signalled (paho callbacks run on the network thread, where `sys.exit()` would only kill that thread), regular `bye()` cleanup, nonzero exit code. Retained restart commands ignored.
+    *   [x] Service unit: `Type=notify`, `WatchdogSec=30`, `Restart=always`, `RestartSec=2`.
+    *   [x] Dependency-free `sd_notify` (raw datagram to `NOTIFY_SOCKET`, no-op standalone); `READY=1` after startup, `WATCHDOG=1` from main loop at `WATCHDOG_USEC/2`.
+*   [x] **Retained mode state:**
+    *   [x] Mode published retained to `MQTT_MODE_TOPIC` on every change (MQTT command and touch) and after every (re)connect's subscription confirmation.
+*   [x] **Docs & test script:** README.org, env example, SPECIFICATION.md updated; `run_test_cycle.sh` extended with a restart-command test, availability check, and manual broker-restart (reconnect path) instructions.
+
 ## Post-Implementation
 *   [ ] **Documentation Update:**
     *   [ ] Update `README.org` with new features, configuration, and setup.

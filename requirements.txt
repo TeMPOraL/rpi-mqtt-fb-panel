@@ -1,3 +1,6 @@
+# paho-mqtt: works with both 1.x (Raspbian bullseye apt ships python3-paho-mqtt
+# 1.5.1) and 2.x (pip); on 2.x the client opts into the legacy VERSION1 callback
+# API so a single set of callback signatures serves both majors.
 paho-mqtt
 Pillow
 numpy

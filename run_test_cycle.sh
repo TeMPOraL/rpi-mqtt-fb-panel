@@ -14,6 +14,8 @@ MQTT_BROKER_HOST="homeassistant.local"
 MQTT_DATA_TOPIC_PREFIX_ON_RPI="home/alert/"
 # This is the prefix for control topics on the RPi. Commands like 'mode-select' will be appended.
 MQTT_CONTROL_TOPIC_PREFIX_ON_RPI="lcars/alert-panel/"
+# Retained availability topic published by the panel ("online" only once subscribed).
+MQTT_AVAILABILITY_TOPIC="lcars/alert-panel/availability"
 
 
 # --- Helper Functions ---
@@ -141,6 +143,44 @@ ssh "$RPI_USER@$RPI_HOST" "sudo systemctl restart $SERVICE_NAME"
 # 7. Check logs after second restart
 echo "[TEST SCRIPT] Step 7: Checking logs after second service restart..."
 check_rpi_logs
+
+# 8. Verify retained availability reads "online" (i.e. connected AND subscribed)
+echo "[TEST SCRIPT] Step 8: Verifying retained availability state..."
+availability=$(ssh "$RPI_USER@$RPI_HOST" "mosquitto_sub -h '$MQTT_BROKER_HOST' -t '$MQTT_AVAILABILITY_TOPIC' -C 1 -W 10")
+if [ "$availability" != "online" ]; then
+    echo "FAILURE: Expected retained availability 'online', got '$availability'."
+    exit 1
+fi
+
+# 9. Test the MQTT 'restart' control command: the panel should exit nonzero and
+#    be brought back by systemd (Restart=always), yielding a new InvocationID.
+echo "[TEST SCRIPT] Step 9: Testing 'restart' control command..."
+invocation_before=$(ssh "$RPI_USER@$RPI_HOST" "systemctl show -p InvocationID --value $SERVICE_NAME")
+send_lcars_command_on_rpi "restart" "now"
+sleep 8
+invocation_after=$(ssh "$RPI_USER@$RPI_HOST" "systemctl show -p InvocationID --value $SERVICE_NAME")
+if [ -z "$invocation_after" ] || [ "$invocation_before" = "$invocation_after" ]; then
+    echo "FAILURE: Service was not restarted by the 'restart' MQTT command."
+    exit 1
+fi
+check_rpi_logs
+
+# --- Manual reconnect-path test (not automated: the broker runs as a Home ---
+# --- Assistant OS add-on, not something this script can safely restart)   ---
+# This exercises the fix for the "silently deaf after broker restart" incident:
+# 1. Restart the Mosquitto broker:
+#    - HA OS add-on: `ha addons restart core_mosquitto` on the HA host, or
+#      Settings -> Add-ons -> Mosquitto -> Restart in the HA UI.
+#    - Local/docker broker: `sudo systemctl restart mosquitto` or
+#      `docker restart <mosquitto-container>`.
+# 2. Watch panel logs: ssh $RPI_USER@$RPI_HOST "sudo journalctl -u mqtt-alert.service -f"
+#    Expect, in order: "Disconnected from MQTT broker" -> "Connected to MQTT
+#    broker" (typically session present: False) -> two "Subscription confirmed"
+#    lines -> "published retained 'online'".
+# 3. Publish a test message (as in step 3.1 above) and confirm it shows on the
+#    panel -- proving subscriptions survived the broker restart.
+# 4. Watchdog check: `systemctl show mqtt-alert.service -p WatchdogTimestamp`
+#    should show a recent timestamp that keeps advancing.
 
 echo "[TEST SCRIPT] All checks passed. Test cycle successful."
 exit 0
