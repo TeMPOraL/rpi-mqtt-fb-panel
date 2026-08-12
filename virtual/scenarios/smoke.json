@@ -1,0 +1,23 @@
+{
+  "name": "smoke",
+  "description": "Boot, switch to events, render one of each importance level.",
+  "env": {"STARTING_MODE": "clock"},
+  "steps": [
+    {"do": "wait_frame", "timeout_ms": 3000},
+    {"do": "capture", "name": "clock_boot", "source": "frame"},
+    {"do": "mqtt", "topic": "lcars/alert-panel/mode-select", "payload": "events"},
+    {"do": "wait_state", "until": {"mode": "events"}, "timeout_ms": 3000},
+    {"do": "mqtt", "topic": "home/alert/test/info",
+     "payload": {"message": "Test INFO message", "source": "smoke", "importance": "info",
+                 "timestamp": "2025-01-01T12:00:00"}},
+    {"do": "mqtt", "topic": "home/alert/test/warning",
+     "payload": {"message": "Test WARNING message", "source": "smoke", "importance": "warning",
+                 "timestamp": "2025-01-01T12:00:01"}},
+    {"do": "mqtt", "topic": "home/alert/test/error",
+     "payload": {"message": "Test ERROR message", "source": "smoke", "importance": "error",
+                 "timestamp": "2025-01-01T12:00:02"}},
+    {"do": "wait_state", "until": {"messages_in_store": 3}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 300},
+    {"do": "capture", "name": "events_importances", "source": "panel"}
+  ]
+}
