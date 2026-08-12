@@ -1,0 +1,132 @@
+{
+  "name": "demo",
+  "description": "Demo recording for the web replayer: clock ticking, mode switch via MQTT, one message of each importance, then touch-driven switch to clock and back.",
+  "dims": {
+    "w": 720,
+    "h": 480
+  },
+  "frames": [
+    {
+      "seq": 4,
+      "t_ms": 401,
+      "file": "frames/00004.png"
+    },
+    {
+      "seq": 5,
+      "t_ms": 1408,
+      "file": "frames/00005.png"
+    },
+    {
+      "seq": 6,
+      "t_ms": 2409,
+      "file": "frames/00006.png"
+    },
+    {
+      "seq": 7,
+      "t_ms": 2607,
+      "file": "frames/00007.png"
+    },
+    {
+      "seq": 8,
+      "t_ms": 3058,
+      "file": "frames/00008.png"
+    },
+    {
+      "seq": 9,
+      "t_ms": 3760,
+      "file": "frames/00009.png"
+    },
+    {
+      "seq": 10,
+      "t_ms": 4471,
+      "file": "frames/00010.png"
+    },
+    {
+      "seq": 11,
+      "t_ms": 5381,
+      "file": "frames/00011.png"
+    },
+    {
+      "seq": 12,
+      "t_ms": 5409,
+      "file": "frames/00012.png"
+    },
+    {
+      "seq": 13,
+      "t_ms": 5443,
+      "file": "frames/00013.png"
+    },
+    {
+      "seq": 14,
+      "t_ms": 6420,
+      "file": "frames/00014.png"
+    },
+    {
+      "seq": 15,
+      "t_ms": 7407,
+      "file": "frames/00015.png"
+    },
+    {
+      "seq": 16,
+      "t_ms": 8024,
+      "file": "frames/00016.png"
+    }
+  ],
+  "events": [
+    {
+      "t_ms": 2600,
+      "type": "mqtt",
+      "detail": {
+        "topic": "lcars/alert-panel/mode-select",
+        "payload": "events"
+      }
+    },
+    {
+      "t_ms": 3051,
+      "type": "mqtt",
+      "detail": {
+        "topic": "home/alert/kitchen",
+        "payload": "{\"message\": \"Coffee is ready in the kitchen\", \"source\": \"kitchen\", \"importance\": \"info\", \"timestamp\": \"2026-08-12T21:00:00\"}"
+      }
+    },
+    {
+      "t_ms": 3751,
+      "type": "mqtt",
+      "detail": {
+        "topic": "home/alert/greenhouse",
+        "payload": "{\"message\": \"Greenhouse temperature above 35C\", \"source\": \"greenhouse\", \"importance\": \"warning\", \"timestamp\": \"2026-08-12T21:00:10\"}"
+      }
+    },
+    {
+      "t_ms": 4451,
+      "type": "mqtt",
+      "detail": {
+        "topic": "home/alert/ups",
+        "payload": "{\"message\": \"UPS on battery power! Shutting down NAS in 5 minutes.\", \"source\": \"ups-monitor\", \"importance\": \"error\", \"timestamp\": \"2026-08-12T21:00:20\"}"
+      }
+    },
+    {
+      "t_ms": 5352,
+      "type": "touch",
+      "detail": {
+        "x": 630,
+        "y": 463
+      }
+    },
+    {
+      "t_ms": 8006,
+      "type": "touch",
+      "detail": {
+        "x": 630,
+        "y": 463
+      }
+    },
+    {
+      "t_ms": 8656,
+      "type": "capture",
+      "detail": {
+        "name": "final"
+      }
+    }
+  ]
+}

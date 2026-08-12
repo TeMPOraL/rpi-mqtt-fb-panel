@@ -120,9 +120,18 @@ class _Handler(BaseHTTPRequestHandler):
     def _get_static(self, path: str) -> None:
         if path == "/":
             path = "/index.html"
-        # Path traversal guard: resolve inside WEB_ROOT only.
-        candidate = os.path.normpath(os.path.join(WEB_ROOT, path.lstrip("/")))
-        if not candidate.startswith(os.path.abspath(WEB_ROOT) + os.sep):
+        # /recordings/ maps to virtual/recordings/ so replay.html's relative
+        # "../recordings/<name>/" links work on this server too (they resolve
+        # the same way when the repo root is served by http.server or Pages).
+        if path.startswith("/recordings/"):
+            root = os.path.join(os.path.dirname(WEB_ROOT), "recordings")
+            rel = path[len("/recordings/"):]
+        else:
+            root = WEB_ROOT
+            rel = path.lstrip("/")
+        # Path traversal guard: resolve inside the chosen root only.
+        candidate = os.path.normpath(os.path.join(root, rel))
+        if not candidate.startswith(os.path.abspath(root) + os.sep):
             self._send_json({"error": "not found"}, 404)
             return
         if not os.path.isfile(candidate):
