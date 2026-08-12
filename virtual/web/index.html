@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCARS Virtual Panel</title>
+<link rel="stylesheet" href="css/lcars.css">
+</head>
+<body>
+<header>
+  <div class="lcars-title">LCARS VIRTUAL PANEL</div>
+  <div class="chips">
+    <span class="chip" id="chip-conn">CONN: —</span>
+    <span class="chip" id="chip-avail">AVAIL: —</span>
+    <span class="chip" id="chip-mode">MODE: —</span>
+    <span class="chip" id="chip-seq">FRAME: 0</span>
+  </div>
+</header>
+
+<main>
+  <section class="screen-wrap">
+    <img id="screen" alt="panel framebuffer" title="Click = touch">
+    <div class="screen-hint" id="screen-hint">waiting for first frame…</div>
+    <div class="banner hidden" id="respawn-banner">panel restarting…</div>
+    <label class="zoom">zoom
+      <select id="zoom">
+        <option value="0.75">75%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.5">150%</option>
+        <option value="2">200%</option>
+      </select>
+    </label>
+  </section>
+
+  <aside class="controls">
+    <h2>Panel commands</h2>
+    <div class="row">
+      <button data-cmd="mode-select" data-payload="events">EVENTS MODE</button>
+      <button data-cmd="mode-select" data-payload="clock">CLOCK MODE</button>
+    </div>
+    <div class="row">
+      <button data-cmd="clear-events" data-payload="">CLEAR EVENTS</button>
+      <button data-cmd="screenshot" data-payload="">SCREENSHOT</button>
+    </div>
+    <div class="row">
+      <button data-cmd="debug-layout" data-payload="enable">DBG LAYOUT ON</button>
+      <button data-cmd="debug-layout" data-payload="disable">OFF</button>
+      <button data-cmd="debug-touch" data-payload="enable">DBG TOUCH ON</button>
+      <button data-cmd="debug-touch" data-payload="disable">OFF</button>
+    </div>
+    <div class="row">
+      <button id="btn-restart" class="danger" data-cmd="restart" data-payload="now">RESTART PANEL</button>
+    </div>
+
+    <h2>Sample events</h2>
+    <div class="row">
+      <button class="sample" data-importance="info">INFO</button>
+      <button class="sample warn" data-importance="warning">WARNING</button>
+      <button class="sample err" data-importance="error">ERROR</button>
+    </div>
+
+    <h2>Publish</h2>
+    <form id="publish-form">
+      <input id="pub-topic" placeholder="topic" spellcheck="false">
+      <input id="pub-payload" placeholder="payload (raw or JSON)" spellcheck="false">
+      <label class="inline"><input type="checkbox" id="pub-retain"> retain</label>
+      <button type="submit">SEND</button>
+    </form>
+
+    <h2>Broker chaos</h2>
+    <div class="row">
+      <button id="btn-drop" class="warnbtn">DROP CONNECTION</button>
+      <button id="btn-broker-restart" class="warnbtn">RESTART BROKER</button>
+    </div>
+    <p class="hint">Restart broker = sessions wiped, retained kept — the 2026
+    incident. The hardened panel must resubscribe and republish "online".</p>
+
+    <h2>State</h2>
+    <table class="state-table" id="retained-table">
+      <thead><tr><th>retained topic</th><th>value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h3>Recent panel publishes</h3>
+    <ul id="publish-log"></ul>
+  </aside>
+</main>
+
+<script src="js/transport_http.js"></script>
+<script src="js/viewer.js"></script>
+<script>Viewer.init(TransportHttp());</script>
+</body>
+</html>

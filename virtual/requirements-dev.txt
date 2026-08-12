@@ -1,0 +1,4 @@
+# Extra tooling for developing/testing the harness itself.
+-r requirements.txt
+pytest
+playwright
