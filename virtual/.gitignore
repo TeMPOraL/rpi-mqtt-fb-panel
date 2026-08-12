@@ -1,0 +1,5 @@
+panel.env
+fonts/*.ttf
+!fonts/DejaVuSans.ttf
+out/
+__pycache__/

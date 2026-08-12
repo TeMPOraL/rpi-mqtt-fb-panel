@@ -1,0 +1,23 @@
+{
+  "name": "broker_restart",
+  "description": "The 2026 production incident: broker restart wipes sessions; the hardened panel must resubscribe and keep rendering messages.",
+  "env": {"STARTING_MODE": "events", "LOG_CONTROL_MESSAGES": "false"},
+  "steps": [
+    {"do": "mqtt", "topic": "home/alert/before",
+     "payload": {"message": "Message BEFORE broker restart", "source": "scenario",
+                 "importance": "info", "timestamp": "2025-01-01T12:00:00"}},
+    {"do": "wait_state", "until": {"messages_in_store": 1}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 300},
+    {"do": "capture", "name": "before_restart", "source": "panel"},
+    {"do": "broker_restart"},
+    {"do": "wait_state", "until": {"connected": true, "subscriptions": 2},
+     "timeout_ms": 10000},
+    {"do": "mqtt", "topic": "home/alert/after",
+     "payload": {"message": "Message AFTER broker restart - subscriptions survived",
+                 "source": "scenario", "importance": "warning",
+                 "timestamp": "2025-01-01T12:00:05"}},
+    {"do": "wait_state", "until": {"messages_in_store": 2}, "timeout_ms": 5000},
+    {"do": "wait", "ms": 300},
+    {"do": "capture", "name": "after_restart", "source": "panel"}
+  ]
+}
