@@ -1,0 +1,31 @@
+{
+  "name": "demo",
+  "description": "Demo recording for the web replayer: clock ticking, mode switch via MQTT, one message of each importance, then touch-driven switch to clock and back.",
+  "env": {"STARTING_MODE": "clock", "LOG_CONTROL_MESSAGES": "false"},
+  "steps": [
+    {"do": "wait", "ms": 2600},
+    {"do": "mqtt", "topic": "lcars/alert-panel/mode-select", "payload": "events"},
+    {"do": "wait_state", "until": {"mode": "events"}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 400},
+    {"do": "mqtt", "topic": "home/alert/kitchen",
+     "payload": {"message": "Coffee is ready in the kitchen", "source": "kitchen",
+                 "importance": "info", "timestamp": "2026-08-12T21:00:00"}},
+    {"do": "wait", "ms": 700},
+    {"do": "mqtt", "topic": "home/alert/greenhouse",
+     "payload": {"message": "Greenhouse temperature above 35C", "source": "greenhouse",
+                 "importance": "warning", "timestamp": "2026-08-12T21:00:10"}},
+    {"do": "wait", "ms": 700},
+    {"do": "mqtt", "topic": "home/alert/ups",
+     "payload": {"message": "UPS on battery power! Shutting down NAS in 5 minutes.",
+                 "source": "ups-monitor", "importance": "error",
+                 "timestamp": "2026-08-12T21:00:20"}},
+    {"do": "wait", "ms": 900},
+    {"do": "touch", "x": 630, "y": 463},
+    {"do": "wait_state", "until": {"mode": "clock"}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 2600},
+    {"do": "touch", "x": 630, "y": 463},
+    {"do": "wait_state", "until": {"mode": "events"}, "timeout_ms": 3000},
+    {"do": "wait", "ms": 600},
+    {"do": "capture", "name": "final", "source": "frame"}
+  ]
+}
