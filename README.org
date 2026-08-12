@@ -16,6 +16,21 @@ Next planned features:
 - Sounds
 - A mode to control a non-wifi A/C unit, so I can use it instead of the manufacturer's boring wall panel (and also control it from Home Assistant)
 
+* Virtual panel (development harness)
+
+The panel can run entirely without the Raspberry Pi: =virtual/= contains a
+harness that executes the *unmodified* production code against fake
+framebuffer/MQTT/touch modules, renders to a live browser viewer (click =
+touch), and provides synthetic MQTT controls including broker-chaos buttons
+that reproduce the 2026 "silently deaf after broker restart" incident.
+
+: pip install -r virtual/requirements.txt
+: python3 virtual/run_virtual.py     # then open http://localhost:8724
+
+Headless scenario runs, golden-image comparison, device-side replay for
+fidelity checks, and browser-replayable committed recordings (viewable via
+GitHub Pages) are included — see =virtual/README.md=.
+
 * MQTT robustness & operations
 
 The MQTT layer is hardened against broker restarts. Previously, a Mosquitto restart that wiped sessions would leave the panel silently connected-but-subscribed-to-nothing (paho's auto-reconnect does not replay subscriptions). Now:
