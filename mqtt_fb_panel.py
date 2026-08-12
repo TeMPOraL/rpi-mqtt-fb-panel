@@ -655,8 +655,10 @@ def on_mqtt(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
             else:
                 print(f"Unknown control command suffix: {command_suffix}", flush=True)
 
-            # Log the control command itself as a message if enabled
-            if log_control_messages_enabled:
+            # Log the control command itself as a message if enabled.
+            # mode-select is exempt: the mode change is self-evident on screen,
+            # and logging it just spams the event log between real events.
+            if log_control_messages_enabled and command_suffix != "mode-select":
                 control_message_obj = Message(
                     text=payload_str,
                     source=f"LCARS/{command_suffix}",
